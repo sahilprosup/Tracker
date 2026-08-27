@@ -147,6 +147,13 @@ through:
 Any git push to the connected branch redeploys automatically after that —
 including tomorrow's fixes.
 
+**One more step or login will silently fail**: Supabase only redirects a
+magic-link sign-in to URLs on an allowlist, and that's a dashboard setting I
+have no API access to configure. Once you have the Vercel URL: Supabase
+dashboard → your project → Authentication → URL Configuration → set **Site
+URL** to that URL, and add `<that-url>/api/auth/callback` under **Redirect
+URLs**. Skip this and clicking the sign-in link in the email will bounce.
+
 ## Local development
 
 ```bash

@@ -8,6 +8,8 @@ interface SubmissionRow {
   note: string | null;
   checkpoint_id: string | null;
   photo_path: string;
+  file_name: string | null;
+  mime_type: string | null;
   itp_items: { alias: string | null; description: string; location_path: string | null } | null;
   profiles: { full_name: string; email: string } | null;
 }
@@ -42,7 +44,7 @@ export default async function ReportPage({
   const { data: submissions } = await supabase
     .from("submissions")
     .select(
-      "id, submitted_at, note, checkpoint_id, photo_path, itp_items(alias, description, location_path), profiles(full_name, email)",
+      "id, submitted_at, note, checkpoint_id, photo_path, file_name, mime_type, itp_items(alias, description, location_path), profiles(full_name, email)",
     )
     .gte("submitted_at", dayStart)
     .lte("submitted_at", dayEnd)
@@ -115,16 +117,29 @@ export default async function ReportPage({
           {(submissions ?? []).map((s) => (
             <tr key={s.id} className="border-b border-zinc-100">
               <td className="py-2">
-                {photoUrls.get(s.id) ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={photoUrls.get(s.id)}
-                    alt="ITP submission"
-                    className="h-12 w-12 rounded object-cover"
-                  />
-                ) : (
-                  <span className="text-xs text-zinc-300">—</span>
-                )}
+                {(() => {
+                  const url = photoUrls.get(s.id);
+                  if (!url) return <span className="text-xs text-zinc-300">—</span>;
+                  const isImage = s.mime_type?.startsWith("image/") ?? true;
+                  if (isImage) {
+                    return (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={url} alt="ITP submission" className="h-12 w-12 rounded object-cover" />
+                    );
+                  }
+                  return (
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex h-12 w-12 flex-col items-center justify-center rounded border border-zinc-200 bg-zinc-50 text-[9px] text-zinc-500 hover:bg-zinc-100"
+                      title={s.file_name ?? "document"}
+                    >
+                      📄
+                      <span className="truncate px-0.5">{s.file_name?.split(".").pop() ?? "file"}</span>
+                    </a>
+                  );
+                })()}
               </td>
               <td className="py-2 text-zinc-500">
                 {new Date(s.submitted_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}

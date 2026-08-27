@@ -52,6 +52,8 @@ export interface Submission {
   itp_item_id: string;
   submitted_by: string;
   photo_path: string;
+  file_name: string | null;
+  mime_type: string | null;
   note: string | null;
   submitted_at: string;
   checkpoint_id: string | null;

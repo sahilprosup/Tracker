@@ -16,7 +16,12 @@ daily report, and Slack gets automatic checkpoint nudges + an end-of-day summary
 - **Auth** — Supabase magic-link email sign-in. Anyone with a `@prolinegroup.au`
   (or any) email can sign in as a `site_worker`; emails listed in
   `COORDINATOR_EMAILS` get the `coordinator` role on first login.
-- **Storage** — private `itp-photos` bucket, one object per submission.
+- **Storage** — private `itp-photos` bucket, one object per submission. Accepts
+  photos (camera or gallery) *and* documents (PDF/Word/Excel) — the report
+  page renders images inline and documents as a clickable file icon.
+- **Mobile** — installable as a home-screen app (manifest.json, standalone
+  display, iOS "Add to Home Screen" support) so it opens full-screen without
+  browser chrome, like a native app.
 - **Slack** — an Incoming Webhook (`SLACK_WEBHOOK_URL`). Two endpoints drive it:
   - `POST /api/cron/checkpoint?secret=...` — call this at 08:30 / 11:30 / 14:30.
     It finds any checkpoint due in the last 15 minutes, tallies today's
@@ -109,6 +114,34 @@ Visibuild write access exists, since it can share the same client.
 your own Slack native reminders — this app doesn't create or manage those. It
 independently tracks the same checkpoint times against real submission data
 and posts its own progress/nudge messages via the webhook.
+
+## Deploy (get a real URL on your phone/laptop)
+
+This session has no hosting credentials (no Vercel/Netlify access), so I can't
+push a live URL myself — but the app deploys in about 2 minutes once you click
+through:
+
+1. Go to **vercel.com/new**, sign in, and import `sahilprosup/Tracker`
+   (branch `claude/proline-tracker-website-vz1t7y`, or merge to `main` first).
+2. When it asks for environment variables, set:
+   - `NEXT_PUBLIC_SUPABASE_URL` = `https://hgoinurzxpylbornukqx.supabase.co`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` = the publishable key from Supabase →
+     Project Settings → API (already provisioned, just needs copying in)
+   - `SUPABASE_SERVICE_ROLE_KEY` = the service role key, same page
+   - `COORDINATOR_EMAILS` = `sahil.john@prolinegroup.au`
+   - `CRON_SECRET` = any random string (used to authorize the two cron endpoints)
+   - `SLACK_WEBHOOK_URL` = leave blank until you create one (see below);
+     the app runs fine without it, it just skips the Slack post
+3. Click Deploy. You get a `*.vercel.app` URL immediately — open it on your
+   phone and tap "Add to Home Screen" (iOS Safari) or "Install app" (Android
+   Chrome) and it behaves like a native app icon, not a browser tab.
+4. Once deployed, set the `APP_URL` and `CRON_SECRET` GitHub repo secrets
+   (Settings → Secrets and variables → Actions) to that URL and the same
+   secret from step 2, so `.github/workflows/cron.yml` can drive the Slack
+   posts.
+
+Any git push to the connected branch redeploys automatically after that —
+including tomorrow's fixes.
 
 ## Local development
 

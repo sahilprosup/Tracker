@@ -12,7 +12,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
 
-  const { itpItemId, photoPath, note } = await request.json();
+  const { itpItemId, photoPath, note, fileName, mimeType } = await request.json();
   if (!itpItemId || !photoPath) {
     return NextResponse.json({ error: "Missing itpItemId or photoPath" }, { status: 400 });
   }
@@ -41,6 +41,8 @@ export async function POST(request: Request) {
       itp_item_id: itpItemId,
       submitted_by: user.id,
       photo_path: photoPath,
+      file_name: fileName || null,
+      mime_type: mimeType || null,
       note: note || null,
       checkpoint_id: checkpoint?.id ?? null,
     })

@@ -4,6 +4,15 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Checkpoint } from "@/lib/types";
 
+async function callCheckpointsApi(method: "POST" | "PATCH" | "DELETE", body: unknown) {
+  const res = await fetch("/api/checkpoints", {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error((await res.json()).error ?? "Request failed");
+}
+
 export function CheckpointEditor({
   projectId,
   projectName,
@@ -18,40 +27,52 @@ export function CheckpointEditor({
   const [newTime, setNewTime] = useState("08:30");
   const [newTarget, setNewTarget] = useState(5);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function updateTarget(id: string, targetCount: number) {
     setBusy(true);
-    await fetch("/api/checkpoints", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, targetCount }),
-    });
-    setBusy(false);
-    router.refresh();
+    setError(null);
+    try {
+      await callCheckpointsApi("PATCH", { id, targetCount });
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update target");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function remove(id: string) {
     setBusy(true);
-    await fetch("/api/checkpoints", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id }),
-    });
-    setBusy(false);
-    router.refresh();
+    setError(null);
+    try {
+      await callCheckpointsApi("DELETE", { id });
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to remove checkpoint");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function addCheckpoint() {
     if (!newLabel) return;
     setBusy(true);
-    await fetch("/api/checkpoints", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ projectId, label: newLabel, timeOfDay: `${newTime}:00`, targetCount: newTarget }),
-    });
-    setNewLabel("");
-    setBusy(false);
-    router.refresh();
+    setError(null);
+    try {
+      await callCheckpointsApi("POST", {
+        projectId,
+        label: newLabel,
+        timeOfDay: `${newTime}:00`,
+        targetCount: newTarget,
+      });
+      setNewLabel("");
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to add checkpoint");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -73,7 +94,7 @@ export function CheckpointEditor({
             <button
               onClick={() => remove(cp.id)}
               disabled={busy}
-              className="text-xs text-red-500 hover:underline"
+              className="text-xs text-red-500 hover:underline disabled:opacity-50"
             >
               Remove
             </button>
@@ -84,7 +105,9 @@ export function CheckpointEditor({
         )}
       </ul>
 
-      <div className="mt-3 flex items-center gap-2 border-t border-zinc-100 pt-3">
+      {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+
+      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-zinc-100 pt-3">
         <input
           placeholder="Label (e.g. Morning)"
           value={newLabel}

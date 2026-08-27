@@ -2,6 +2,16 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { PrintButton } from "@/app/components/print-button";
 
+interface SubmissionRow {
+  id: string;
+  submitted_at: string;
+  note: string | null;
+  checkpoint_id: string | null;
+  photo_path: string;
+  itp_items: { alias: string | null; description: string; location_path: string | null } | null;
+  profiles: { full_name: string; email: string } | null;
+}
+
 export default async function ReportPage({
   params,
   searchParams,
@@ -42,11 +52,18 @@ export default async function ReportPage({
         await supabase.from("itp_items").select("id").eq("project_id", id)
       ).data?.map((r) => r.id) ?? [],
     )
-    .order("submitted_at");
+    .order("submitted_at")
+    .returns<SubmissionRow[]>();
 
   const checkpointCounts = new Map<string, number>();
   for (const s of submissions ?? []) {
     if (s.checkpoint_id) checkpointCounts.set(s.checkpoint_id, (checkpointCounts.get(s.checkpoint_id) ?? 0) + 1);
+  }
+
+  const photoUrls = new Map<string, string>();
+  for (const s of submissions ?? []) {
+    const { data } = await supabase.storage.from("itp-photos").createSignedUrl(s.photo_path, 3600);
+    if (data?.signedUrl) photoUrls.set(s.id, data.signedUrl);
   }
 
   return (
@@ -86,6 +103,7 @@ export default async function ReportPage({
       <table className="mt-8 w-full text-sm">
         <thead>
           <tr className="border-b border-zinc-200 text-left text-xs uppercase text-zinc-400">
+            <th className="py-2">Photo</th>
             <th className="py-2">Time</th>
             <th className="py-2">Submitted by</th>
             <th className="py-2">Location</th>
@@ -94,8 +112,20 @@ export default async function ReportPage({
           </tr>
         </thead>
         <tbody>
-          {(submissions ?? []).map((s: any) => (
+          {(submissions ?? []).map((s) => (
             <tr key={s.id} className="border-b border-zinc-100">
+              <td className="py-2">
+                {photoUrls.get(s.id) ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={photoUrls.get(s.id)}
+                    alt="ITP submission"
+                    className="h-12 w-12 rounded object-cover"
+                  />
+                ) : (
+                  <span className="text-xs text-zinc-300">—</span>
+                )}
+              </td>
               <td className="py-2 text-zinc-500">
                 {new Date(s.submitted_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
               </td>
@@ -107,7 +137,7 @@ export default async function ReportPage({
           ))}
           {(submissions ?? []).length === 0 && (
             <tr>
-              <td colSpan={5} className="py-6 text-center text-zinc-400">
+              <td colSpan={6} className="py-6 text-center text-zinc-400">
                 No submissions recorded for {reportDate}.
               </td>
             </tr>

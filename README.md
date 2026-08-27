@@ -30,6 +30,49 @@ daily report, and Slack gets automatic checkpoint nudges + an end-of-day summary
 - **Visibuild** — reading is live (project/ITP seed data below came from the
   real account). **Writing back is stubbed** — see "What's not real yet" below.
 
+## Admin (coordinators)
+
+`/admin` (visible to anyone with `coordinator`/`admin` role) has:
+- **Checkpoints** — add/edit/remove the per-project 08:30/11:30/14:30 targets
+  that drive both the Slack nudges and the daily report's checkpoint columns.
+- **Sync log** — every attempt (or non-attempt) to push a submission back into
+  Visibuild, with status and error detail.
+
+## Automating the Slack posts
+
+Nothing in this repo runs on a schedule by itself — `/api/cron/checkpoint` and
+`/api/cron/daily-report` are plain endpoints that need something external to
+call them. `.github/workflows/cron.yml` does this via GitHub Actions native
+cron (no third-party scheduler, no Vercel Cron needed): set two repo secrets
+once the app is deployed —
+
+- `APP_URL` — the deployed app's base URL
+- `CRON_SECRET` — must match the app's `CRON_SECRET` env var
+
+and it fires the checkpoint endpoint at 08:30/11:30/14:30 AEST and the daily
+report once at the end of the day. `workflow_dispatch` is enabled too, so you
+can trigger a run manually to test.
+
+**Slack webhook**: this app posts through a Slack Incoming Webhook
+(`SLACK_WEBHOOK_URL`), not a bot token, because generating one requires
+workspace-admin access in Slack's own app console — not something available
+to automate from here. To create it: api.slack.com/apps → Create New App →
+"From scratch" → Incoming Webhooks → toggle on → Add New Webhook to Workspace
+→ pick the reporting channel → copy the URL into `SLACK_WEBHOOK_URL`.
+
+## Bulk-importing every project's ITP items
+
+`scripts/import-visibuild.ts` is the real path to loading all 44 projects'
+visis (only Melton Hospital's facade/cladding section — 25 items — is seeded
+today, pulled by hand as a proof of concept). It expects a real Visibuild REST
+API with write-capable credentials (`VISIBUILD_API_BASE_URL`,
+`VISIBUILD_API_KEY`) and paginates + upserts into `itp_items`:
+
+```bash
+npx tsx scripts/import-visibuild.ts <visibuild_project_id>
+npx tsx scripts/import-visibuild.ts --all
+```
+
 ## What's not real yet
 
 **Visibuild write-back.** The Visibuild connection this was built against only

@@ -1,0 +1,31 @@
+name: ITP tracker cron
+
+# Drives the Slack checkpoint nudges and end-of-day report without needing
+# Vercel Cron or a third-party scheduler. Requires two repo secrets once the
+# app is deployed:
+#   APP_URL     - the deployed app's base URL (e.g. https://tracker.prolinegroup.au)
+#   CRON_SECRET - must match CRON_SECRET in the app's environment
+on:
+  schedule:
+    # All times UTC. Melbourne is UTC+10/+11 - adjust if daylight saving matters.
+    - cron: "30 22 * * *" # 08:30 AEST
+    - cron: "30 1 * * *"  # 11:30 AEST
+    - cron: "30 4 * * *"  # 14:30 AEST (also used to trigger the daily report below)
+  workflow_dispatch: {}
+
+jobs:
+  checkpoint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hit checkpoint endpoint
+        run: |
+          curl -fsS -X POST "${{ secrets.APP_URL }}/api/cron/checkpoint?secret=${{ secrets.CRON_SECRET }}"
+
+  daily-report:
+    runs-on: ubuntu-latest
+    needs: checkpoint
+    if: github.event.schedule == '30 4 * * *' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Hit daily report endpoint
+        run: |
+          curl -fsS -X POST "${{ secrets.APP_URL }}/api/cron/daily-report?secret=${{ secrets.CRON_SECRET }}"

@@ -19,13 +19,23 @@ export async function POST(request: Request) {
   const nowTime = now.toTimeString().slice(0, 8);
   const windowStart = new Date(now.getTime() - 15 * 60 * 1000).toTimeString().slice(0, 8);
 
+  interface DueCheckpoint {
+    id: string;
+    label: string;
+    time_of_day: string;
+    target_count: number;
+    project_id: string;
+    projects: { name: string } | null;
+  }
+
   const { data: checkpoints } = await supabase
     .from("checkpoints")
     .select("id, label, time_of_day, target_count, project_id, projects(name)")
     .gte("time_of_day", windowStart)
-    .lte("time_of_day", nowTime);
+    .lte("time_of_day", nowTime)
+    .returns<DueCheckpoint[]>();
 
-  const results: unknown[] = [];
+  const results: { project: string; checkpoint: string; target: number; actual: number }[] = [];
   const todayStart = new Date();
   todayStart.setUTCHours(0, 0, 0, 0);
 
@@ -41,7 +51,7 @@ export async function POST(request: Request) {
       .gte("submitted_at", todayStart.toISOString());
 
     const actual = count ?? 0;
-    const projectName = (cp as any).projects?.name ?? "Unknown project";
+    const projectName = cp.projects?.name ?? "Unknown project";
 
     await postToSlack(
       formatCheckpointNudge({

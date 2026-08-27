@@ -5,6 +5,14 @@ import { SignOutButton } from "@/app/components/sign-out-button";
 export default async function DashboardPage() {
   const supabase = await createClient();
 
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { data: profile } = user
+    ? await supabase.from("profiles").select("role").eq("id", user.id).single()
+    : { data: null };
+  const isCoordinator = profile?.role === "coordinator" || profile?.role === "admin";
+
   const { data: projects } = await supabase
     .from("projects")
     .select("id, name, company, active")
@@ -31,7 +39,17 @@ export default async function DashboardPage() {
           <h1 className="text-2xl font-semibold text-zinc-900">Projects</h1>
           <p className="text-sm text-zinc-500">ITP checklist progress across all active sites.</p>
         </div>
-        <SignOutButton />
+        <div className="flex items-center gap-3">
+          {isCoordinator && (
+            <Link
+              href="/admin"
+              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-100"
+            >
+              Admin
+            </Link>
+          )}
+          <SignOutButton />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">

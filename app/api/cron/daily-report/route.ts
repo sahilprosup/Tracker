@@ -27,12 +27,20 @@ export async function POST(request: Request) {
     const itemIds = (items ?? []).map((i: { id: string }) => i.id);
     if (itemIds.length === 0) continue;
 
+    interface SubmissionWithProfile {
+      id: string;
+      checkpoint_id: string | null;
+      submitted_by: string;
+      profiles: { full_name: string; email: string } | null;
+    }
+
     const { data: submissions } = await supabase
       .from("submissions")
       .select("id, checkpoint_id, submitted_by, profiles(full_name, email)")
       .in("itp_item_id", itemIds)
       .gte("submitted_at", dayStart)
-      .lte("submitted_at", dayEnd);
+      .lte("submitted_at", dayEnd)
+      .returns<SubmissionWithProfile[]>();
 
     const { data: checkpoints } = await supabase
       .from("checkpoints")
@@ -49,7 +57,7 @@ export async function POST(request: Request) {
 
     const bySubmitterMap = new Map<string, number>();
     for (const s of submissions ?? []) {
-      const name = (s as any).profiles?.full_name ?? (s as any).profiles?.email ?? "Unknown";
+      const name = s.profiles?.full_name ?? s.profiles?.email ?? "Unknown";
       bySubmitterMap.set(name, (bySubmitterMap.get(name) ?? 0) + 1);
     }
     const bySubmitter = [...bySubmitterMap.entries()].map(([name, count]) => ({ name, count }));

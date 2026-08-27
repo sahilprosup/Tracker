@@ -1,6 +1,19 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+async function requireCoordinatorClient() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+  if (!profile || (profile.role !== "coordinator" && profile.role !== "admin")) return null;
+
+  return supabase;
+}
+
 // Lets coordinators add ITP items by hand, one at a time or pasted in bulk.
 // This exists because bulk-importing every project from Visibuild needs
 // write-scoped API credentials we don't have yet (see
@@ -8,16 +21,8 @@ import { createClient } from "@/lib/supabase/server";
 // project's checklist into the tracker themselves, at whatever pace the
 // project needs (one item, or a whole pasted list).
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-
-  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-  if (!profile || (profile.role !== "coordinator" && profile.role !== "admin")) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const supabase = await requireCoordinatorClient();
+  if (!supabase) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await request.json();
   const { projectId } = body;
@@ -71,4 +76,22 @@ export async function POST(request: Request) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ item });
+}
+
+// Manually close (or reopen) an item. Exists because Visibuild write-back is
+// stubbed (lib/visibuild.ts) - until that's real, a coordinator verifying the
+// close-out directly in Visibuild needs a way to reflect that here too,
+// otherwise every submitted item sits at "submitted" forever.
+export async function PATCH(request: Request) {
+  const supabase = await requireCoordinatorClient();
+  if (!supabase) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const { id, status } = await request.json();
+  if (!id || (status !== "closed" && status !== "submitted")) {
+    return NextResponse.json({ error: "Missing id or invalid status" }, { status: 400 });
+  }
+
+  const { error } = await supabase.from("itp_items").update({ status }).eq("id", id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true });
 }

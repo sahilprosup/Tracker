@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { SubmitPhotoButton } from "@/app/components/submit-photo-button";
 import { AddItpItemForm } from "@/app/components/add-itp-item-form";
+import { MarkClosedButton } from "@/app/components/mark-closed-button";
 import type { ItpItem } from "@/lib/types";
 
 const STATUS_STYLES: Record<string, string> = {
@@ -99,9 +100,11 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
                   </div>
                   {item.status === "open" ? (
                     <SubmitPhotoButton itpItemId={item.id} />
+                  ) : isCoordinator ? (
+                    <MarkClosedButton itemId={item.id} status={item.status} />
                   ) : (
                     <span className="whitespace-nowrap text-xs text-zinc-400">
-                      Submitted ✓
+                      {item.status === "closed" ? "Closed ✓" : "Submitted ✓"}
                     </span>
                   )}
                 </li>

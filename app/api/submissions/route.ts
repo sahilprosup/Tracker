@@ -20,7 +20,7 @@ export async function POST(request: Request) {
 
   const { data: item } = await supabase
     .from("itp_items")
-    .select("id, project_id, visibuild_visi_id")
+    .select("id, project_id, visibuild_visi_id, alias, description, projects(visibuild_project_id)")
     .eq("id", itpItemId)
     .single();
   if (!item) {
@@ -55,12 +55,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // Attempt to close the loop in Visibuild. Currently stubbed — see lib/visibuild.ts —
-  // this never blocks the submission itself from succeeding.
+  // Push the photo into Visibuild as ticket evidence. This does NOT close the
+  // original visi in Visibuild (no confirmed endpoint for that yet - see
+  // lib/visibuild.ts) so it never auto-closes the item here either; a
+  // coordinator still confirms the close-out via "Mark closed" once they've
+  // checked it in Visibuild. This never blocks the submission from succeeding.
+  const project = item.projects as unknown as { visibuild_project_id: string | null } | null;
   const syncResult = await syncSubmissionToVisibuild({
     submissionId: submission.id,
     itpItemId,
     visibuildVisiId: item.visibuild_visi_id,
+    visibuildProjectId: project?.visibuild_project_id ?? null,
+    itemAlias: item.alias,
+    itemDescription: item.description,
     photoPath,
   });
 
@@ -69,7 +76,6 @@ export async function POST(request: Request) {
       .from("submissions")
       .update({ visibuild_sync_status: "synced", visibuild_synced_at: new Date().toISOString() })
       .eq("id", submission.id);
-    await supabase.from("itp_items").update({ status: "closed" }).eq("id", itpItemId);
   }
 
   return NextResponse.json({ submission, visibuildSync: syncResult.status });

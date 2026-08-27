@@ -4,7 +4,7 @@
 // items) was pulled by hand via Claude's Visibuild MCP session, which only
 // works interactively and doesn't scale to 44 projects / thousands of visis.
 // This script is the real path: it expects a proper Visibuild REST API
-// (VISIBUILD_API_BASE_URL + VISIBUILD_API_KEY, the same env vars
+// (VISIBUILD_API_BASE_URL + VISIBUILD_ACCESS_TOKEN, the same env vars
 // lib/visibuild.ts is waiting on) and paginates through every visi for a
 // project, upserting into Supabase.
 //
@@ -17,7 +17,7 @@ import { createClient } from "@supabase/supabase-js";
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const VISIBUILD_API_BASE_URL = process.env.VISIBUILD_API_BASE_URL;
-const VISIBUILD_API_KEY = process.env.VISIBUILD_API_KEY;
+const VISIBUILD_ACCESS_TOKEN = process.env.VISIBUILD_ACCESS_TOKEN;
 
 interface VisibuildVisi {
   id: string;
@@ -31,9 +31,9 @@ interface VisibuildVisi {
 }
 
 async function fetchAllVisis(visibuildProjectId: string): Promise<VisibuildVisi[]> {
-  if (!VISIBUILD_API_BASE_URL || !VISIBUILD_API_KEY) {
+  if (!VISIBUILD_API_BASE_URL || !VISIBUILD_ACCESS_TOKEN) {
     throw new Error(
-      "VISIBUILD_API_BASE_URL / VISIBUILD_API_KEY not set — see scripts/import-visibuild.ts header.",
+      "VISIBUILD_API_BASE_URL / VISIBUILD_ACCESS_TOKEN not set — see scripts/import-visibuild.ts header.",
     );
   }
 
@@ -44,7 +44,7 @@ async function fetchAllVisis(visibuildProjectId: string): Promise<VisibuildVisi[
     const url = new URL(`${VISIBUILD_API_BASE_URL}/projects/${visibuildProjectId}/visis`);
     if (cursor) url.searchParams.set("cursor", cursor);
 
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${VISIBUILD_API_KEY}` } });
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${VISIBUILD_ACCESS_TOKEN}` } });
     if (!res.ok) throw new Error(`Visibuild API error ${res.status}: ${await res.text()}`);
 
     const page = await res.json();

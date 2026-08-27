@@ -41,7 +41,9 @@ daily report, and Slack gets automatic checkpoint nudges + an end-of-day summary
   `SLACK_BOT_TOKEN` and each project's Slack channel mapped at `/admin/slack`;
   see below for the full setup.
 - **Visibuild** — reading is live (project/ITP seed data below came from the
-  real account). **Writing back is stubbed** — see "What's not real yet" below.
+  real account). Writing back is real but partial: photos upload to Visibuild
+  as ticket attachments, but don't yet close the original checklist item —
+  see "What's not real yet" below.
 
 ## Admin (coordinators)
 
@@ -127,7 +129,7 @@ if their Slack email matches a `profiles.email`; otherwise it's recorded with
 visis (only Melton Hospital's facade/cladding section — 25 items — is seeded
 today, pulled by hand as a proof of concept). It expects a real Visibuild REST
 API with write-capable credentials (`VISIBUILD_API_BASE_URL`,
-`VISIBUILD_API_KEY`) and paginates + upserts into `itp_items`:
+`VISIBUILD_ACCESS_TOKEN`) and paginates + upserts into `itp_items`:
 
 ```bash
 npx tsx scripts/import-visibuild.ts <visibuild_project_id>
@@ -136,16 +138,27 @@ npx tsx scripts/import-visibuild.ts --all
 
 ## What's not real yet
 
-**Visibuild write-back.** The Visibuild connection this was built against only
-exposes read tools (list/search/get on projects, visis, tickets). There is no
-create/upload/close endpoint to call, so a submitted photo does **not**
-currently push into Visibuild or auto-close the item there. `lib/visibuild.ts`
-has the integration point already wired into the submission flow
-(`app/api/submissions/route.ts` calls `syncSubmissionToVisibuild` on every
-submit) — once ProLine has a Visibuild API key with write scope, fill in
-`VISIBUILD_API_BASE_URL` / `VISIBUILD_API_KEY` and replace the TODO'd request
-in that one function. Every attempt (or non-attempt) is logged to
-`visibuild_sync_log` so nothing silently fails.
+**Visibuild write-back — real, but partial.** `lib/visibuild.ts` implements
+the actual upload flow from Visibuild's own API docs: request a presigned S3
+URL (`POST /api/core/v1/attachments`), PUT the file to S3, then reference the
+returned key when creating a record. It runs automatically on every
+submission once `VISIBUILD_API_BASE_URL` and `VISIBUILD_ACCESS_TOKEN` are set
+(see `.env.example` — the base URL defaults to `https://app.apac.visibuild.com`;
+how to actually obtain/refresh an access token isn't in the docs we have, so
+ask Visibuild support).
+
+The gap: the only "create a record with `attachmentKeys`" example Visibuild's
+docs give is **tickets** (defects) — there's no confirmed endpoint for
+attaching a photo directly to an existing **visi** (an ITP checklist item) or
+marking one closed. So today this creates a *new* Visibuild ticket
+referencing the project, with the photo attached and the ITP item's alias/
+description in the title — it does **not** close the original visi, and the
+app does not auto-close the item locally either (a coordinator still uses
+"Mark closed" once they've verified it in Visibuild). If Visibuild's API has
+a `visis` resource that accepts `attachmentKeys`, or a dedicated close
+endpoint, swap the call in `createVisibuildRecord()` for that instead — the
+upload plumbing around it is already real and doesn't need to change. Every
+attempt is logged to `visibuild_sync_log` either way.
 
 **Full ITP import.** Only Melton Hospital's facade/cladding section (25 real
 items, pulled live from Visibuild) is seeded, as a working example — see

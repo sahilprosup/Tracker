@@ -41,6 +41,9 @@ export async function POST(request: Request) {
     if (rows.length === 0) {
       return NextResponse.json({ error: "No valid items to add" }, { status: 400 });
     }
+    if (rows.length > 500) {
+      return NextResponse.json({ error: "Paste 500 items or fewer at a time" }, { status: 400 });
+    }
 
     const { data: items, error } = await supabase.from("itp_items").insert(rows).select();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });

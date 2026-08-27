@@ -9,6 +9,8 @@ import { createClient } from "@/lib/supabase/client";
 // datasheet or signed form). Mobile gets the camera by default via
 // capture="environment" but the native file picker still lets a site worker
 // choose "Photo Library" or "Browse" for a document instead.
+const MAX_FILE_BYTES = 20 * 1024 * 1024; // 20MB - generous for a phone photo, guards against an accidental video pick on mobile data
+
 export function SubmitPhotoButton({ itpItemId }: { itpItemId: string }) {
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState("");
@@ -81,7 +83,17 @@ export function SubmitPhotoButton({ itpItemId }: { itpItemId: string }) {
         type="file"
         accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx"
         capture="environment"
-        onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+        onChange={(e) => {
+          const picked = e.target.files?.[0] ?? null;
+          if (picked && picked.size > MAX_FILE_BYTES) {
+            setError(`That file is ${(picked.size / 1024 / 1024).toFixed(0)}MB — 20MB max. Try a smaller photo or a compressed file.`);
+            setFile(null);
+            e.target.value = "";
+            return;
+          }
+          setError(null);
+          setFile(picked);
+        }}
         className="block w-full text-xs"
       />
       {file && <p className="mt-1 truncate text-xs text-zinc-500">{file.name}</p>}

@@ -5,17 +5,25 @@ name: ITP tracker cron
 # app is deployed:
 #   APP_URL     - the deployed app's base URL (e.g. https://tracker.prolinegroup.au)
 #   CRON_SECRET - must match CRON_SECRET in the app's environment
+#
+# Melbourne shifts between AEST (UTC+10) and AEDT (UTC+11) with daylight
+# saving, but GitHub Actions cron is fixed UTC - there's no single UTC time
+# that stays "08:30 Melbourne" year-round. Rather than hardcode one offset
+# and drift an hour wrong for half the year, the checkpoint job runs every
+# 15 minutes across a band that covers business hours in both AEST and AEDT;
+# /api/cron/checkpoint itself computes real Melbourne wall-clock time (see
+# lib/time.ts) and only acts on checkpoints due in the last 15 minutes, so
+# firing it early/often is harmless - it just usually finds nothing due yet.
 on:
   schedule:
-    # All times UTC. Melbourne is UTC+10/+11 - adjust if daylight saving matters.
-    - cron: "30 22 * * *" # 08:30 AEST
-    - cron: "30 1 * * *"  # 11:30 AEST
-    - cron: "30 4 * * *"  # 14:30 AEST (also used to trigger the daily report below)
+    - cron: "*/15 21-23,0-8 * * *" # every 15 min, ~07:00-19:00 Melbourne across both DST regimes
+    - cron: "0 9 * * *"            # once daily, ~19:00 AEST / 20:00 AEDT - end of day report
   workflow_dispatch: {}
 
 jobs:
   checkpoint:
     runs-on: ubuntu-latest
+    if: github.event.schedule == '*/15 21-23,0-8 * * *' || github.event_name == 'workflow_dispatch'
     steps:
       - name: Hit checkpoint endpoint
         run: |
@@ -23,8 +31,7 @@ jobs:
 
   daily-report:
     runs-on: ubuntu-latest
-    needs: checkpoint
-    if: github.event.schedule == '30 4 * * *' || github.event_name == 'workflow_dispatch'
+    if: github.event.schedule == '0 9 * * *' || github.event_name == 'workflow_dispatch'
     steps:
       - name: Hit daily report endpoint
         run: |

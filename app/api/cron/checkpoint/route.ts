@@ -36,10 +36,13 @@ export async function POST(request: Request) {
     projects: { name: string } | null;
   }
 
+  // Window is (windowStart, nowTime] - exclusive start, inclusive end - so
+  // back-to-back 15-minute cron runs tile the day without a checkpoint that
+  // lands exactly on a boundary getting matched (and Slack-nudged) twice.
   const { data: checkpoints } = await supabase
     .from("checkpoints")
     .select("id, label, time_of_day, target_count, project_id, projects(name)")
-    .gte("time_of_day", windowStart)
+    .gt("time_of_day", windowStart)
     .lte("time_of_day", nowTime)
     .returns<DueCheckpoint[]>();
 

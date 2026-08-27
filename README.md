@@ -36,6 +36,10 @@ daily report, and Slack gets automatic checkpoint nudges + an end-of-day summary
     data is browsable in-app at `/admin/summary`.
   Trigger both from any external scheduler (cron-job.org, GitHub Actions
   `schedule:`, Vercel Cron, etc.) — nothing here runs on its own.
+- **Slack channel ingestion** — a photo posted straight into a project's Slack
+  channel (instead of through the app) gets picked up too. Requires
+  `SLACK_BOT_TOKEN` and each project's Slack channel mapped at `/admin/slack`;
+  see below for the full setup.
 - **Visibuild** — reading is live (project/ITP seed data below came from the
   real account). **Writing back is stubbed** — see "What's not real yet" below.
 
@@ -49,6 +53,9 @@ daily report, and Slack gets automatic checkpoint nudges + an end-of-day summary
 - **Cross-project summary** (`/admin/summary`) — today's submissions and
   checkpoint hits across every active project, the same data the end-of-day
   Slack report is built from.
+- **Slack channel mapping** (`/admin/slack`) — link each project to the Slack
+  channel its ITP photos get posted into, so `/api/cron/slack-ingest` knows
+  where to look.
 
 Coordinators can also add ITP items to a project by hand from the checklist
 page (`+ Add ITP item manually`) — useful for any project not yet imported
@@ -80,6 +87,39 @@ workspace-admin access in Slack's own app console — not something available
 to automate from here. To create it: api.slack.com/apps → Create New App →
 "From scratch" → Incoming Webhooks → toggle on → Add New Webhook to Workspace
 → pick the reporting channel → copy the URL into `SLACK_WEBHOOK_URL`.
+
+## Slack channel ingestion
+
+Lets a site worker post a photo straight into the project's Slack channel
+instead of opening the app, and have it count as a real submission. Slack
+messages don't carry any link to a specific ITP item, so a message needs to
+mention the item's alias/code (e.g. "MHCOB-30824") in its text for it to be
+matched — the bot reacts ✅ when it logs one, or ❓ when it saw a photo but
+couldn't match it to an item.
+
+Setup:
+
+1. Create the Slack app (or reuse the one from the Incoming Webhook step) →
+   **OAuth & Permissions** → add these **Bot Token Scopes**: `channels:history`,
+   `channels:read`, `groups:history`, `groups:read` (only needed for private
+   channels), `files:read`, `users:read`, `users:read.email`, `chat:write`.
+2. **Install to Workspace** (or reinstall, if scopes changed after the first
+   install) → copy the **Bot User OAuth Token** (`xoxb-...`) into
+   `SLACK_BOT_TOKEN`.
+3. In each ITP project's Slack channel: `/invite @<your app name>` — the bot
+   can only read channels it's actually a member of.
+4. Get each channel's ID (right-click the channel → View channel details →
+   scroll down) and map it to the matching project at `/admin/slack`
+   (coordinator-only).
+5. `.github/workflows/cron.yml` already calls
+   `POST /api/cron/slack-ingest?secret=...` on the same 15-minute schedule as
+   the checkpoint check, before it — so a photo dropped in Slack counts
+   toward that checkpoint's tally if it lands in time.
+
+A submission ingested this way is attributed to the poster's tracker account
+if their Slack email matches a `profiles.email`; otherwise it's recorded with
+`submitted_via = 'slack'` and their Slack display name, and shows a purple
+"Slack" tag on the daily report.
 
 ## Bulk-importing every project's ITP items
 
@@ -136,6 +176,9 @@ through:
    - `CRON_SECRET` = any random string (used to authorize the two cron endpoints)
    - `SLACK_WEBHOOK_URL` = leave blank until you create one (see below);
      the app runs fine without it, it just skips the Slack post
+   - `SLACK_BOT_TOKEN` = leave blank until you set up channel ingestion (see
+     "Slack channel ingestion" below); without it, `/api/cron/slack-ingest`
+     just no-ops
 3. Click Deploy. You get a `*.vercel.app` URL immediately — open it on your
    phone and tap "Add to Home Screen" (iOS Safari) or "Install app" (Android
    Chrome) and it behaves like a native app icon, not a browser tab.

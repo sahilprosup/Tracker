@@ -21,8 +21,17 @@ on:
   workflow_dispatch: {}
 
 jobs:
+  slack-ingest:
+    runs-on: ubuntu-latest
+    if: github.event.schedule == '*/15 21-23,0-8 * * *' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Pull new photos from mapped Slack channels
+        run: |
+          curl -fsS -X POST "${{ secrets.APP_URL }}/api/cron/slack-ingest?secret=${{ secrets.CRON_SECRET }}"
+
   checkpoint:
     runs-on: ubuntu-latest
+    needs: slack-ingest
     if: github.event.schedule == '*/15 21-23,0-8 * * *' || github.event_name == 'workflow_dispatch'
     steps:
       - name: Hit checkpoint endpoint

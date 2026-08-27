@@ -52,6 +52,13 @@ export default async function AdminPage() {
           <p className="text-sm text-zinc-500">Today&apos;s submissions and checkpoint hits across every project — the same data behind the end-of-day Slack report.</p>
         </Link>
         <Link
+          href="/admin/slack"
+          className="block rounded-lg border border-zinc-200 bg-white p-4 hover:border-zinc-400"
+        >
+          <p className="font-medium text-zinc-900">Slack channel mapping</p>
+          <p className="text-sm text-zinc-500">Link each project to its Slack channel so photos posted there get logged automatically.</p>
+        </Link>
+        <Link
           href="/admin/checkpoints"
           className="block rounded-lg border border-zinc-200 bg-white p-4 hover:border-zinc-400"
         >

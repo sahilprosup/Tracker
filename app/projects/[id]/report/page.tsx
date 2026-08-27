@@ -11,6 +11,8 @@ interface SubmissionRow {
   photo_path: string;
   file_name: string | null;
   mime_type: string | null;
+  submitted_via: "app" | "slack";
+  slack_display_name: string | null;
   itp_items: { alias: string | null; description: string; location_path: string | null } | null;
   profiles: { full_name: string; email: string } | null;
 }
@@ -44,7 +46,7 @@ export default async function ReportPage({
   const { data: submissions } = await supabase
     .from("submissions")
     .select(
-      "id, submitted_at, note, checkpoint_id, photo_path, file_name, mime_type, itp_items(alias, description, location_path), profiles(full_name, email)",
+      "id, submitted_at, note, checkpoint_id, photo_path, file_name, mime_type, submitted_via, slack_display_name, itp_items(alias, description, location_path), profiles(full_name, email)",
     )
     .gte("submitted_at", dayStart)
     .lt("submitted_at", dayEnd)
@@ -145,7 +147,14 @@ export default async function ReportPage({
               <td className="py-2 text-zinc-500">
                 {new Date(s.submitted_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
               </td>
-              <td className="py-2">{s.profiles?.full_name ?? s.profiles?.email}</td>
+              <td className="py-2">
+                {s.profiles?.full_name ?? s.profiles?.email ?? s.slack_display_name ?? "Unknown"}
+                {s.submitted_via === "slack" && (
+                  <span className="ml-1.5 rounded-full bg-violet-100 px-1.5 py-0.5 text-[9px] font-medium uppercase text-violet-700">
+                    Slack
+                  </span>
+                )}
+              </td>
               <td className="py-2 text-zinc-500">{s.itp_items?.location_path}</td>
               <td className="py-2">{s.itp_items?.alias} — {s.itp_items?.description}</td>
               <td className="py-2 text-zinc-500">{s.note ?? "—"}</td>

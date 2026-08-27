@@ -18,6 +18,7 @@ export interface Project {
   name: string;
   company: string | null;
   slack_channel_id: string | null;
+  slack_last_synced_ts: string | null;
   active: boolean;
   created_at: string;
 }
@@ -47,16 +48,21 @@ export interface ItpItem {
   updated_at: string;
 }
 
+export type SubmittedVia = "app" | "slack";
+
 export interface Submission {
   id: string;
   itp_item_id: string;
-  submitted_by: string;
+  submitted_by: string | null;
   photo_path: string;
   file_name: string | null;
   mime_type: string | null;
   note: string | null;
   submitted_at: string;
   checkpoint_id: string | null;
+  submitted_via: SubmittedVia;
+  slack_user_id: string | null;
+  slack_display_name: string | null;
   visibuild_sync_status: SyncStatus;
   visibuild_synced_at: string | null;
   visibuild_sync_error: string | null;

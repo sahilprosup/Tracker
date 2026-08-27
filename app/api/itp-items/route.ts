@@ -1,17 +1,23 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
-async function requireCoordinatorClient() {
+type CoordinatorContext =
+  | { ok: true; supabase: Awaited<ReturnType<typeof createClient>> }
+  | { ok: false; status: 401 | 403; error: string };
+
+async function requireCoordinatorClient(): Promise<CoordinatorContext> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return null;
+  if (!user) return { ok: false, status: 401, error: "Not signed in" };
 
   const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-  if (!profile || (profile.role !== "coordinator" && profile.role !== "admin")) return null;
+  if (!profile || (profile.role !== "coordinator" && profile.role !== "admin")) {
+    return { ok: false, status: 403, error: "Forbidden" };
+  }
 
-  return supabase;
+  return { ok: true, supabase };
 }
 
 // Lets coordinators add ITP items by hand, one at a time or pasted in bulk.
@@ -21,8 +27,9 @@ async function requireCoordinatorClient() {
 // project's checklist into the tracker themselves, at whatever pace the
 // project needs (one item, or a whole pasted list).
 export async function POST(request: Request) {
-  const supabase = await requireCoordinatorClient();
-  if (!supabase) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const ctx = await requireCoordinatorClient();
+  if (!ctx.ok) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+  const { supabase } = ctx;
 
   const body = await request.json();
   const { projectId } = body;
@@ -83,15 +90,23 @@ export async function POST(request: Request) {
 // close-out directly in Visibuild needs a way to reflect that here too,
 // otherwise every submitted item sits at "submitted" forever.
 export async function PATCH(request: Request) {
-  const supabase = await requireCoordinatorClient();
-  if (!supabase) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const ctx = await requireCoordinatorClient();
+  if (!ctx.ok) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+  const { supabase } = ctx;
 
   const { id, status } = await request.json();
   if (!id || (status !== "closed" && status !== "submitted")) {
     return NextResponse.json({ error: "Missing id or invalid status" }, { status: 400 });
   }
 
-  const { error } = await supabase.from("itp_items").update({ status }).eq("id", id);
+  const { data, error } = await supabase
+    .from("itp_items")
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .select("id");
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!data || data.length === 0) {
+    return NextResponse.json({ error: "Item not found" }, { status: 404 });
+  }
   return NextResponse.json({ ok: true });
 }

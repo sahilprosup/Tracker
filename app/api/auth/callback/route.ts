@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
@@ -22,7 +22,14 @@ export async function GET(request: Request) {
         ? "coordinator"
         : "site_worker";
 
-      await supabase.from("profiles").upsert(
+      // Runs as service role, not the user's own RLS-bound session: creating
+      // a profile row is internal bookkeeping the user isn't "doing"
+      // themselves, and depending on getting an INSERT policy exactly right
+      // for it is fragile - a missing/wrong policy here silently blocks
+      // every first-time sign-in from ever getting a profile row, with the
+      // symptom only showing up much later as "why aren't I a coordinator".
+      const serviceClient = createServiceClient();
+      const { error: profileError } = await serviceClient.from("profiles").upsert(
         {
           id: data.user.id,
           email: data.user.email!,
@@ -31,6 +38,9 @@ export async function GET(request: Request) {
         },
         { onConflict: "id", ignoreDuplicates: true },
       );
+      if (profileError) {
+        console.error("Failed to create/update profile on sign-in:", profileError);
+      }
       return NextResponse.redirect(`${origin}${next}`);
     }
   }

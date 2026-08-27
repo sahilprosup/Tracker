@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireCoordinator } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { nowInMelbourne, melbourneDayBoundsUtc } from "@/lib/time";
 
 interface ProjectRow {
   id: string;
@@ -15,7 +16,7 @@ export default async function CrossProjectSummaryPage({
 }) {
   await requireCoordinator();
   const { date } = await searchParams;
-  const reportDate = date ?? new Date().toISOString().slice(0, 10);
+  const reportDate = date ?? nowInMelbourne().date;
   const supabase = await createClient();
 
   const { data: projects } = await supabase
@@ -25,8 +26,7 @@ export default async function CrossProjectSummaryPage({
     .order("name")
     .returns<ProjectRow[]>();
 
-  const dayStart = `${reportDate}T00:00:00Z`;
-  const dayEnd = `${reportDate}T23:59:59Z`;
+  const { start: dayStart, end: dayEnd } = melbourneDayBoundsUtc(reportDate);
 
   const rows = [];
   let grandTotal = 0;
@@ -41,7 +41,7 @@ export default async function CrossProjectSummaryPage({
           .select("id", { count: "exact", head: true })
           .in("itp_item_id", itemIds)
           .gte("submitted_at", dayStart)
-          .lte("submitted_at", dayEnd)
+          .lt("submitted_at", dayEnd)
       : { count: 0 };
 
     const { data: checkpoints } = await supabase
@@ -58,7 +58,7 @@ export default async function CrossProjectSummaryPage({
             .in("itp_item_id", itemIds)
             .eq("checkpoint_id", cp.id)
             .gte("submitted_at", dayStart)
-            .lte("submitted_at", dayEnd)
+            .lt("submitted_at", dayEnd)
         : { count: 0 };
       if ((count ?? 0) >= cp.target_count) checkpointsMet += 1;
     }

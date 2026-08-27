@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { postToSlack, formatConsolidatedDailyReport } from "@/lib/slack";
+import { nowInMelbourne, melbourneDayBoundsUtc } from "@/lib/time";
 
 // Call once at end of day, e.g. POST /api/cron/daily-report?secret=CRON_SECRET
 // Builds a per-project summary (submission count, checkpoint hit/miss, who
@@ -16,9 +17,8 @@ export async function POST(request: Request) {
   }
 
   const supabase = createServiceClient();
-  const reportDate = new Date().toISOString().slice(0, 10);
-  const dayStart = `${reportDate}T00:00:00Z`;
-  const dayEnd = `${reportDate}T23:59:59Z`;
+  const { date: reportDate } = nowInMelbourne();
+  const { start: dayStart, end: dayEnd } = melbourneDayBoundsUtc(reportDate);
 
   const { data: projects } = await supabase.from("projects").select("id, name").eq("active", true);
 
@@ -47,7 +47,7 @@ export async function POST(request: Request) {
       .select("id, checkpoint_id, submitted_by, profiles(full_name, email)")
       .in("itp_item_id", itemIds)
       .gte("submitted_at", dayStart)
-      .lte("submitted_at", dayEnd)
+      .lt("submitted_at", dayEnd)
       .returns<SubmissionWithProfile[]>();
 
     const { data: checkpoints } = await supabase

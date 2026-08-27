@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { syncSubmissionToVisibuild } from "@/lib/visibuild";
+import { nowInMelbourne } from "@/lib/time";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -19,18 +20,19 @@ export async function POST(request: Request) {
 
   const { data: item } = await supabase
     .from("itp_items")
-    .select("id, visibuild_visi_id")
+    .select("id, project_id, visibuild_visi_id")
     .eq("id", itpItemId)
     .single();
   if (!item) {
     return NextResponse.json({ error: "ITP item not found" }, { status: 404 });
   }
 
-  const now = new Date();
+  const { time: nowTime } = nowInMelbourne();
   const { data: checkpoint } = await supabase
     .from("checkpoints")
     .select("id, time_of_day")
-    .lte("time_of_day", now.toTimeString().slice(0, 8))
+    .eq("project_id", item.project_id)
+    .lte("time_of_day", nowTime)
     .order("time_of_day", { ascending: false })
     .limit(1)
     .maybeSingle();

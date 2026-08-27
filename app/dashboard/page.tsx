@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { SignOutButton } from "@/app/components/sign-out-button";
+import { nowInMelbourne, melbourneDayBoundsUtc } from "@/lib/time";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -23,14 +24,13 @@ export default async function DashboardPage() {
     .from("itp_items")
     .select("project_id, status");
 
-  const todayStart = new Date();
-  todayStart.setUTCHours(0, 0, 0, 0);
+  const { start: todayStart } = melbourneDayBoundsUtc(nowInMelbourne().date);
   const { count: myTodayCount } = user
     ? await supabase
         .from("submissions")
         .select("id", { count: "exact", head: true })
         .eq("submitted_by", user.id)
-        .gte("submitted_at", todayStart.toISOString())
+        .gte("submitted_at", todayStart)
     : { count: null };
 
   const countsByProject = new Map<string, { total: number; submitted: number; closed: number }>();

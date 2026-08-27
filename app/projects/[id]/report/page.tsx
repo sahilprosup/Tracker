@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { PrintButton } from "@/app/components/print-button";
+import { nowInMelbourne, melbourneDayBoundsUtc } from "@/lib/time";
 
 interface SubmissionRow {
   id: string;
@@ -23,7 +24,7 @@ export default async function ReportPage({
 }) {
   const { id } = await params;
   const { date } = await searchParams;
-  const reportDate = date ?? new Date().toISOString().slice(0, 10);
+  const reportDate = date ?? nowInMelbourne().date;
   const supabase = await createClient();
 
   const { data: project } = await supabase
@@ -38,8 +39,7 @@ export default async function ReportPage({
     .eq("project_id", id)
     .order("time_of_day");
 
-  const dayStart = `${reportDate}T00:00:00Z`;
-  const dayEnd = `${reportDate}T23:59:59Z`;
+  const { start: dayStart, end: dayEnd } = melbourneDayBoundsUtc(reportDate);
 
   const { data: submissions } = await supabase
     .from("submissions")
@@ -47,7 +47,7 @@ export default async function ReportPage({
       "id, submitted_at, note, checkpoint_id, photo_path, file_name, mime_type, itp_items(alias, description, location_path), profiles(full_name, email)",
     )
     .gte("submitted_at", dayStart)
-    .lte("submitted_at", dayEnd)
+    .lt("submitted_at", dayEnd)
     .in(
       "itp_item_id",
       (

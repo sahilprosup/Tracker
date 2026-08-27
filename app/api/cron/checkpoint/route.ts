@@ -1,6 +1,15 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { postToSlack, formatCheckpointNudge } from "@/lib/slack";
+import { nowInMelbourne, melbourneDayBoundsUtc } from "@/lib/time";
+
+function subtractMinutes(hhmmss: string, minutes: number): string {
+  const [h, m, s] = hhmmss.split(":").map(Number);
+  const totalMinutes = Math.max(0, h * 60 + m - minutes);
+  const hh = Math.floor(totalMinutes / 60);
+  const mm = totalMinutes % 60;
+  return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
 
 // Call this once per checkpoint time (8:30 / 11:30 / 14:30) from an external
 // scheduler (cron-job.org, Vercel Cron, GitHub Actions schedule, etc.), e.g.:
@@ -15,9 +24,8 @@ export async function POST(request: Request) {
   }
 
   const supabase = createServiceClient();
-  const now = new Date();
-  const nowTime = now.toTimeString().slice(0, 8);
-  const windowStart = new Date(now.getTime() - 15 * 60 * 1000).toTimeString().slice(0, 8);
+  const { date: today, time: nowTime } = nowInMelbourne();
+  const windowStart = subtractMinutes(nowTime, 15);
 
   interface DueCheckpoint {
     id: string;
@@ -36,8 +44,7 @@ export async function POST(request: Request) {
     .returns<DueCheckpoint[]>();
 
   const results: { project: string; checkpoint: string; target: number; actual: number }[] = [];
-  const todayStart = new Date();
-  todayStart.setUTCHours(0, 0, 0, 0);
+  const { start: todayStart } = melbourneDayBoundsUtc(today);
 
   for (const cp of checkpoints ?? []) {
     const { data: items } = await supabase.from("itp_items").select("id").eq("project_id", cp.project_id);
@@ -48,7 +55,7 @@ export async function POST(request: Request) {
       .from("submissions")
       .select("id", { count: "exact", head: true })
       .in("itp_item_id", itemIds)
-      .gte("submitted_at", todayStart.toISOString());
+      .gte("submitted_at", todayStart);
 
     const actual = count ?? 0;
     const projectName = cp.projects?.name ?? "Unknown project";

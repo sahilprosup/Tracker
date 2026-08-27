@@ -22,11 +22,15 @@ export async function GET(request: Request) {
         ? "coordinator"
         : "site_worker";
 
+      const fullName =
+        (data.user.user_metadata?.full_name as string | undefined)?.trim() ||
+        data.user.email!.split("@")[0];
+
       await supabase.from("profiles").upsert(
         {
           id: data.user.id,
           email: data.user.email!,
-          full_name: data.user.email!.split("@")[0],
+          full_name: fullName,
           role,
         },
         { onConflict: "id", ignoreDuplicates: true },

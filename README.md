@@ -185,7 +185,7 @@ through:
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY` = the publishable key from Supabase →
      Project Settings → API (already provisioned, just needs copying in)
    - `SUPABASE_SERVICE_ROLE_KEY` = the service role key, same page
-   - `COORDINATOR_EMAILS` = `sahil.john@prolinegroup.au`
+   - `COORDINATOR_EMAILS` = `sahil@prolinegroup.au`
    - `CRON_SECRET` = any random string (used to authorize the two cron endpoints)
    - `SLACK_WEBHOOK_URL` = leave blank until you create one (see below);
      the app runs fine without it, it just skips the Slack post

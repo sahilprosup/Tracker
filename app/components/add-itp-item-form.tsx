@@ -46,23 +46,24 @@ export function AddItpItemForm({ projectId }: { projectId: string }) {
     setBusy(true);
     setError(null);
 
-    const res = await fetch("/api/itp-items", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ projectId, description, locationPath, alias, visiType }),
-    });
+    try {
+      const res = await fetch("/api/itp-items", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId, description, locationPath, alias, visiType }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Failed to add item");
 
-    setBusy(false);
-    if (!res.ok) {
-      setError((await res.json()).error ?? "Failed to add item");
-      return;
+      setDescription("");
+      setLocationPath("");
+      setAlias("");
+      setOpen(false);
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setBusy(false);
     }
-
-    setDescription("");
-    setLocationPath("");
-    setAlias("");
-    setOpen(false);
-    router.refresh();
   }
 
   async function handleSubmitBulk() {
@@ -75,22 +76,23 @@ export function AddItpItemForm({ projectId }: { projectId: string }) {
     setError(null);
     setAddedCount(null);
 
-    const res = await fetch("/api/itp-items", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ projectId, items }),
-    });
+    try {
+      const res = await fetch("/api/itp-items", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId, items }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Failed to add items");
 
-    setBusy(false);
-    if (!res.ok) {
-      setError((await res.json()).error ?? "Failed to add items");
-      return;
+      const { count } = await res.json();
+      setAddedCount(count);
+      setBulkText("");
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setBusy(false);
     }
-
-    const { count } = await res.json();
-    setAddedCount(count);
-    setBulkText("");
-    router.refresh();
   }
 
   if (!open) {

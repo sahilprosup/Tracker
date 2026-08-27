@@ -45,6 +45,13 @@ export default async function AdminPage() {
 
       <div className="mt-8 space-y-2">
         <Link
+          href="/admin/summary"
+          className="block rounded-lg border border-zinc-200 bg-white p-4 hover:border-zinc-400"
+        >
+          <p className="font-medium text-zinc-900">Cross-project summary</p>
+          <p className="text-sm text-zinc-500">Today&apos;s submissions and checkpoint hits across every project — the same data behind the end-of-day Slack report.</p>
+        </Link>
+        <Link
           href="/admin/checkpoints"
           className="block rounded-lg border border-zinc-200 bg-white p-4 hover:border-zinc-400"
         >

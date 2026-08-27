@@ -24,7 +24,11 @@ daily report, and Slack gets automatic checkpoint nudges + an end-of-day summary
     project.
   - `POST /api/cron/daily-report?secret=...` — call once at end of day. Builds
     a per-project summary (total submitted, checkpoint hit/miss, who submitted
-    what), saves it to `daily_reports`, and posts it to Slack.
+    what), saves each to `daily_reports`, then posts **one consolidated
+    message** across every active project — "X photos submitted across N
+    projects today" with a per-project breakdown — matching "rip me a report
+    across all 43 projects" rather than 43 separate Slack messages. The same
+    data is browsable in-app at `/admin/summary`.
   Trigger both from any external scheduler (cron-job.org, GitHub Actions
   `schedule:`, Vercel Cron, etc.) — nothing here runs on its own.
 - **Visibuild** — reading is live (project/ITP seed data below came from the
@@ -37,6 +41,14 @@ daily report, and Slack gets automatic checkpoint nudges + an end-of-day summary
   that drive both the Slack nudges and the daily report's checkpoint columns.
 - **Sync log** — every attempt (or non-attempt) to push a submission back into
   Visibuild, with status and error detail.
+- **Cross-project summary** (`/admin/summary`) — today's submissions and
+  checkpoint hits across every active project, the same data the end-of-day
+  Slack report is built from.
+
+Coordinators can also add ITP items to a project by hand from the checklist
+page (`+ Add ITP item manually`) — useful for any project not yet imported
+from Visibuild, since bulk import needs write-scoped API credentials (see
+below).
 
 ## Automating the Slack posts
 

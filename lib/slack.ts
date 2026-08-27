@@ -38,6 +38,39 @@ export function formatCheckpointNudge(params: {
   );
 }
 
+export function formatConsolidatedDailyReport(params: {
+  reportDate: string;
+  projects: {
+    name: string;
+    submissionCount: number;
+    checkpointsMet: number;
+    checkpointsTotal: number;
+  }[];
+}) {
+  const { reportDate, projects } = params;
+  const totalSubmissions = projects.reduce((sum, p) => sum + p.submissionCount, 0);
+  const activeProjects = projects.filter((p) => p.submissionCount > 0 || p.checkpointsTotal > 0);
+
+  if (activeProjects.length === 0) {
+    return `📋 *End of Day Report — ${reportDate}*\n\nNo ITP activity recorded across any project today.`;
+  }
+
+  const lines = activeProjects
+    .sort((a, b) => b.submissionCount - a.submissionCount)
+    .map((p) => {
+      const flag = p.checkpointsTotal > 0 && p.checkpointsMet < p.checkpointsTotal ? "⚠️" : "✅";
+      const checkpointNote = p.checkpointsTotal > 0 ? ` (${p.checkpointsMet}/${p.checkpointsTotal} checkpoints hit)` : "";
+      return `${flag} *${p.name}*: ${p.submissionCount} submitted${checkpointNote}`;
+    })
+    .join("\n");
+
+  return (
+    `📋 *End of Day Report — ${reportDate}*\n\n` +
+    `*${totalSubmissions} ITP photos submitted across ${activeProjects.length} active project${activeProjects.length === 1 ? "" : "s"}:*\n\n` +
+    lines
+  );
+}
+
 export function formatDailyReport(params: {
   projectName: string;
   reportDate: string;

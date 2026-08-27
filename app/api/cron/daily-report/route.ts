@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
-import { postToSlack, formatDailyReport } from "@/lib/slack";
+import { postToSlack, formatConsolidatedDailyReport } from "@/lib/slack";
 
 // Call once at end of day, e.g. POST /api/cron/daily-report?secret=CRON_SECRET
 // Builds a per-project summary (submission count, checkpoint hit/miss, who
-// submitted what) across every active project, stores it in daily_reports,
-// and posts it to Slack.
+// submitted what) across every active project, stores each in daily_reports,
+// then posts ONE consolidated message to Slack across all projects - this is
+// the "rip me a report... across all 43 projects" the tracker is meant for,
+// not 43 separate Slack messages.
 export async function POST(request: Request) {
   const { searchParams } = new URL(request.url);
   const secret = searchParams.get("secret") ?? request.headers.get("authorization")?.replace("Bearer ", "");
@@ -21,6 +23,12 @@ export async function POST(request: Request) {
   const { data: projects } = await supabase.from("projects").select("id, name").eq("active", true);
 
   const reports = [];
+  const consolidatedProjects: {
+    name: string;
+    submissionCount: number;
+    checkpointsMet: number;
+    checkpointsTotal: number;
+  }[] = [];
 
   for (const project of projects ?? []) {
     const { data: items } = await supabase.from("itp_items").select("id").eq("project_id", project.id);
@@ -63,7 +71,8 @@ export async function POST(request: Request) {
     const bySubmitter = [...bySubmitterMap.entries()].map(([name, count]) => ({ name, count }));
 
     const submissionCount = submissions?.length ?? 0;
-    if (submissionCount === 0 && Object.keys(checkpointSummary).length === 0) continue;
+    const checkpointEntries = Object.values(checkpointSummary);
+    if (submissionCount === 0 && checkpointEntries.length === 0) continue;
 
     await supabase.from("daily_reports").upsert(
       {
@@ -76,18 +85,17 @@ export async function POST(request: Request) {
       { onConflict: "project_id,report_date" },
     );
 
-    await postToSlack(
-      formatDailyReport({
-        projectName: project.name,
-        reportDate,
-        submissionCount,
-        checkpointSummary,
-        bySubmitter,
-      }),
-    );
+    consolidatedProjects.push({
+      name: project.name,
+      submissionCount,
+      checkpointsMet: checkpointEntries.filter((c) => c.actual >= c.target).length,
+      checkpointsTotal: checkpointEntries.length,
+    });
 
-    reports.push({ project: project.name, submissionCount });
+    reports.push({ project: project.name, submissionCount, bySubmitter });
   }
+
+  await postToSlack(formatConsolidatedDailyReport({ reportDate, projects: consolidatedProjects }));
 
   return NextResponse.json({ reportDate, projectsReported: reports.length, reports });
 }

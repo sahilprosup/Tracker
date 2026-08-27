@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { SubmitPhotoButton } from "@/app/components/submit-photo-button";
+import { AddItpItemForm } from "@/app/components/add-itp-item-form";
 import type { ItpItem } from "@/lib/types";
 
 const STATUS_STYLES: Record<string, string> = {
@@ -12,6 +13,14 @@ const STATUS_STYLES: Record<string, string> = {
 export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { data: profile } = user
+    ? await supabase.from("profiles").select("role").eq("id", user.id).single()
+    : { data: null };
+  const isCoordinator = profile?.role === "coordinator" || profile?.role === "admin";
 
   const { data: project } = await supabase
     .from("projects")
@@ -53,6 +62,12 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         <p className="rounded-md border border-dashed border-zinc-300 p-6 text-sm text-zinc-500">
           No ITP items loaded for this project yet.
         </p>
+      )}
+
+      {isCoordinator && (
+        <div className="mb-6">
+          <AddItpItemForm projectId={id} />
+        </div>
       )}
 
       <div className="space-y-6">

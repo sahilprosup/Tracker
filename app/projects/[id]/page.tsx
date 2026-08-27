@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { SubmitPhotoButton } from "@/app/components/submit-photo-button";
 import { AddItpItemForm } from "@/app/components/add-itp-item-form";
@@ -27,6 +28,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
     .select("id, name, company")
     .eq("id", id)
     .single();
+
+  if (!project) notFound();
 
   const { data: items } = await supabase
     .from("itp_items")
@@ -78,8 +81,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
             </div>
             <ul className="divide-y divide-zinc-100">
               {locationItems.map((item) => (
-                <li key={item.id} className="flex items-start justify-between gap-4 px-4 py-3">
-                  <div>
+                <li key={item.id} className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-mono text-zinc-400">{item.alias}</span>
                       <span

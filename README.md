@@ -66,9 +66,13 @@ once the app is deployed —
 - `APP_URL` — the deployed app's base URL
 - `CRON_SECRET` — must match the app's `CRON_SECRET` env var
 
-and it fires the checkpoint endpoint at 08:30/11:30/14:30 AEST and the daily
-report once at the end of the day. `workflow_dispatch` is enabled too, so you
-can trigger a run manually to test.
+Melbourne shifts between AEST/AEDT with daylight saving, which a fixed-UTC
+cron can't track, so `cron.yml` runs the checkpoint check every 15 minutes
+across a band covering business hours in both, and `/api/cron/checkpoint`
+itself (via `lib/time.ts`) computes real Melbourne wall-clock time to decide
+what's actually due — firing early/often is harmless. The daily report fires
+once, near end of day. `workflow_dispatch` is enabled too, so you can trigger
+a run manually to test.
 
 **Slack webhook**: this app posts through a Slack Incoming Webhook
 (`SLACK_WEBHOOK_URL`), not a bot token, because generating one requires
@@ -150,6 +154,14 @@ cp .env.example .env.local   # fill in the Supabase anon key + Slack webhook
 npm install
 npm run dev
 ```
+
+```bash
+npm test    # lib/__tests__ - currently the Melbourne timezone logic
+npm run lint
+npm run build
+```
+
+`.github/workflows/ci.yml` runs all three on every push and PR.
 
 ## Data model
 

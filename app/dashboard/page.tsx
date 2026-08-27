@@ -23,6 +23,16 @@ export default async function DashboardPage() {
     .from("itp_items")
     .select("project_id, status");
 
+  const todayStart = new Date();
+  todayStart.setUTCHours(0, 0, 0, 0);
+  const { count: myTodayCount } = user
+    ? await supabase
+        .from("submissions")
+        .select("id", { count: "exact", head: true })
+        .eq("submitted_by", user.id)
+        .gte("submitted_at", todayStart.toISOString())
+    : { count: null };
+
   const countsByProject = new Map<string, { total: number; submitted: number; closed: number }>();
   for (const row of itemCounts ?? []) {
     const entry = countsByProject.get(row.project_id) ?? { total: 0, submitted: 0, closed: 0 };
@@ -50,6 +60,11 @@ export default async function DashboardPage() {
           )}
           <SignOutButton />
         </div>
+      </div>
+
+      <div className="mb-6 rounded-lg border border-zinc-200 bg-white px-4 py-3">
+        <p className="text-xs text-zinc-500">Your submissions today</p>
+        <p className="text-xl font-semibold text-zinc-900">{myTodayCount ?? 0}</p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">

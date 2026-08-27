@@ -44,7 +44,8 @@ export default async function SyncLogPage() {
         write access isn&apos;t wired up yet — see README.
       </p>
 
-      <table className="mt-6 w-full text-sm">
+      <div className="mt-6 overflow-x-auto">
+      <table className="w-full min-w-[640px] text-sm">
         <thead>
           <tr className="border-b border-zinc-200 text-left text-xs uppercase text-zinc-400">
             <th className="py-2">Time</th>
@@ -81,6 +82,7 @@ export default async function SyncLogPage() {
           )}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

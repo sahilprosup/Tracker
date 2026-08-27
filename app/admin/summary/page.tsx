@@ -93,7 +93,8 @@ export default async function CrossProjectSummaryPage({
         <p className="text-2xl font-semibold text-zinc-900">{grandTotal}</p>
       </div>
 
-      <table className="mt-6 w-full text-sm">
+      <div className="mt-6 overflow-x-auto">
+      <table className="w-full min-w-[520px] text-sm">
         <thead>
           <tr className="border-b border-zinc-200 text-left text-xs uppercase text-zinc-400">
             <th className="py-2">Project</th>
@@ -138,6 +139,7 @@ export default async function CrossProjectSummaryPage({
           )}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

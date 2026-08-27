@@ -102,7 +102,8 @@ export default async function ReportPage({
         })}
       </div>
 
-      <table className="mt-8 w-full text-sm">
+      <div className="mt-8 overflow-x-auto print:overflow-visible">
+      <table className="w-full min-w-[640px] text-sm print:min-w-0">
         <thead>
           <tr className="border-b border-zinc-200 text-left text-xs uppercase text-zinc-400">
             <th className="py-2">Photo</th>
@@ -159,6 +160,7 @@ export default async function ReportPage({
           )}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

@@ -38,6 +38,7 @@ export interface ItpItem {
   visi_type: VisiType;
   alias: string | null;
   location_path: string | null;
+  location_order: number | null;
   code: string | null;
   description: string;
   assignee: string | null;

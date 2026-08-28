@@ -35,7 +35,15 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   const { data: items } = await supabase
     .from("itp_items")
     .select("*")
-    .eq("project_id", id)
+    // Visibuild's location tree has a manually-set sibling order that isn't
+    // alphabetical (e.g. "Small Plantroom Zone A4" is listed before "Big
+    // Plantroom Zone A2" under the same parent in Visibuild itself), so
+    // sorting the location_path string alphabetically scrambles sections
+    // compared to how they appear in Visibuild. location_order holds that
+    // real order where it's been backfilled; items without it (not yet
+    // backfilled for this project) sort alphabetically after everything
+    // that has an order, rather than being interleaved arbitrarily.
+    .order("location_order", { ascending: true, nullsFirst: false })
     .order("location_path");
 
   const grouped = new Map<string, ItpItem[]>();

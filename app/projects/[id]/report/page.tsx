@@ -31,20 +31,24 @@ export default async function ReportPage({
 
   const { start: dayStart, end: dayEnd } = melbourneDayBoundsUtc(reportDate);
 
-  const [{ data: project }, { data: checkpoints }, { data: itemIdRows }] = await Promise.all([
+  const [{ data: project }, { data: checkpoints }] = await Promise.all([
     supabase.from("projects").select("id, name, company").eq("id", id).single(),
     supabase.from("checkpoints").select("id, label, time_of_day, target_count").eq("project_id", id).order("time_of_day"),
-    supabase.from("itp_items").select("id").eq("project_id", id),
   ]);
 
+  // Filtering via .in("itp_item_id", [...every item id...]) broke on any
+  // project with a few hundred+ items: the URL grew past what Supabase's
+  // gateway accepts and every request 400'd, so the report silently showed
+  // zero submissions. Using an inner-joined filter on itp_items.project_id
+  // does the same filtering server-side without listing every id in the URL.
   const { data: submissions } = await supabase
     .from("submissions")
     .select(
-      "id, submitted_at, note, checkpoint_id, photo_path, file_name, mime_type, submitted_via, slack_display_name, itp_items(alias, description, location_path), profiles(full_name, email)",
+      "id, submitted_at, note, checkpoint_id, photo_path, file_name, mime_type, submitted_via, slack_display_name, itp_items!inner(alias, description, location_path, project_id), profiles(full_name, email)",
     )
+    .eq("itp_items.project_id", id)
     .gte("submitted_at", dayStart)
     .lt("submitted_at", dayEnd)
-    .in("itp_item_id", itemIdRows?.map((r) => r.id) ?? [])
     .order("submitted_at")
     .returns<SubmissionRow[]>();
 

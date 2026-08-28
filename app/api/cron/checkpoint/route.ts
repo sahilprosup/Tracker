@@ -50,14 +50,14 @@ export async function POST(request: Request) {
   const { start: todayStart } = melbourneDayBoundsUtc(today);
 
   for (const cp of checkpoints ?? []) {
-    const { data: items } = await supabase.from("itp_items").select("id").eq("project_id", cp.project_id);
-    const itemIds = (items ?? []).map((i: { id: string }) => i.id);
-    if (itemIds.length === 0) continue;
-
+    // Filtering via itp_items!inner + .eq(...) does the item-ownership check
+    // as a server-side join instead of fetching every item id for the
+    // project and passing them all in an .in() list, which 400'd outright on
+    // any project with a few hundred+ items (URL too long for the gateway).
     const { count } = await supabase
       .from("submissions")
-      .select("id", { count: "exact", head: true })
-      .in("itp_item_id", itemIds)
+      .select("id, itp_items!inner(project_id)", { count: "exact", head: true })
+      .eq("itp_items.project_id", cp.project_id)
       .gte("submitted_at", todayStart);
 
     const actual = count ?? 0;

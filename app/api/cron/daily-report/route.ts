@@ -31,10 +31,6 @@ export async function POST(request: Request) {
   }[] = [];
 
   for (const project of projects ?? []) {
-    const { data: items } = await supabase.from("itp_items").select("id").eq("project_id", project.id);
-    const itemIds = (items ?? []).map((i: { id: string }) => i.id);
-    if (itemIds.length === 0) continue;
-
     interface SubmissionWithProfile {
       id: string;
       checkpoint_id: string | null;
@@ -43,10 +39,16 @@ export async function POST(request: Request) {
       profiles: { full_name: string; email: string } | null;
     }
 
+    // Filtering via itp_items!inner + .eq(...) does the item-ownership check
+    // as a server-side join instead of fetching every item id for the
+    // project and passing them all in an .in() list, which 400'd outright on
+    // any project with a few hundred+ items (URL too long for the gateway).
     const { data: submissions } = await supabase
       .from("submissions")
-      .select("id, checkpoint_id, submitted_by, slack_display_name, profiles(full_name, email)")
-      .in("itp_item_id", itemIds)
+      .select(
+        "id, checkpoint_id, submitted_by, slack_display_name, profiles(full_name, email), itp_items!inner(project_id)",
+      )
+      .eq("itp_items.project_id", project.id)
       .gte("submitted_at", dayStart)
       .lt("submitted_at", dayEnd)
       .returns<SubmissionWithProfile[]>();

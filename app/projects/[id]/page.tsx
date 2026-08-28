@@ -18,13 +18,18 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
 
   const [
     {
-      data: { user },
+      data: { session },
     },
     { data: project },
   ] = await Promise.all([
-    supabase.auth.getUser(),
+    // getSession() reads the cookie locally instead of round-tripping to
+    // Supabase Auth - safe here because the proxy middleware already called
+    // getUser() (which does hit the network) to validate/refresh it for
+    // every request that reaches this page.
+    supabase.auth.getSession(),
     supabase.from("projects").select("id, name, company").eq("id", id).single(),
   ]);
+  const user = session?.user ?? null;
 
   if (!project) notFound();
 

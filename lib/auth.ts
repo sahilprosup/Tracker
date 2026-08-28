@@ -4,9 +4,14 @@ import type { Profile } from "@/lib/types";
 
 export async function requireCoordinator(): Promise<Profile> {
   const supabase = await createClient();
+  // getSession() reads the cookie locally instead of round-tripping to
+  // Supabase Auth - safe here because the proxy middleware already called
+  // getUser() (which does hit the network) to validate/refresh it for
+  // every request that reaches this page.
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    data: { session },
+  } = await supabase.auth.getSession();
+  const user = session?.user ?? null;
   if (!user) redirect("/login");
 
   const { data: profile } = await supabase

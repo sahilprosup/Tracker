@@ -10,15 +10,20 @@ export default async function DashboardPage() {
 
   const [
     {
-      data: { user },
+      data: { session },
     },
     { data: projects },
     { data: itemCounts },
   ] = await Promise.all([
-    supabase.auth.getUser(),
+    // getSession() reads the cookie locally instead of round-tripping to
+    // Supabase Auth - safe here because the proxy middleware already called
+    // getUser() (which does hit the network) to validate/refresh it for
+    // every request that reaches this page.
+    supabase.auth.getSession(),
     supabase.from("projects").select("id, name, company, active").eq("active", true).order("name"),
     supabase.from("itp_items").select("project_id, status"),
   ]);
+  const user = session?.user ?? null;
 
   const [{ data: profile }, { count: myTodayCount }] = await Promise.all([
     user

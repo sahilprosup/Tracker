@@ -27,7 +27,9 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isAuthRoute = request.nextUrl.pathname.startsWith("/login");
+  const isAuthRoute =
+    request.nextUrl.pathname.startsWith("/login") ||
+    request.nextUrl.pathname.startsWith("/signup");
   const isApiRoute = request.nextUrl.pathname.startsWith("/api");
 
   if (!user && !isAuthRoute && !isApiRoute) {

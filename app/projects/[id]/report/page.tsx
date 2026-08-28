@@ -52,16 +52,15 @@ export default async function ReportPage({
     .lt("submitted_at", dayEnd)
     .in(
       "itp_item_id",
-      (
-        await supabase.from("itp_items").select("id").eq("project_id", id)
-      ).data?.map((r) => r.id) ?? [],
+      (await supabase.from("itp_items").select("id").eq("project_id", id)).data?.map((r) => r.id) ?? [],
     )
     .order("submitted_at")
     .returns<SubmissionRow[]>();
 
   const checkpointCounts = new Map<string, number>();
   for (const s of submissions ?? []) {
-    if (s.checkpoint_id) checkpointCounts.set(s.checkpoint_id, (checkpointCounts.get(s.checkpoint_id) ?? 0) + 1);
+    if (s.checkpoint_id)
+      checkpointCounts.set(s.checkpoint_id, (checkpointCounts.get(s.checkpoint_id) ?? 0) + 1);
   }
 
   const photoUrls = new Map<string, string>();
@@ -71,104 +70,129 @@ export default async function ReportPage({
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-10 print:px-0 print:py-0">
-      <div className="mb-6 flex items-center justify-between print:hidden">
-        <Link href={`/projects/${id}`} className="text-xs text-zinc-400 hover:text-zinc-600">
-          ← Back to checklist
+    <div>
+      <header className="m-header m-noprint">
+        <Link href="/dashboard" className="m-brand">
+          <span className="m-brand-mark">ProLine</span>
+          <span className="inline-block h-[13px] w-px bg-[var(--color-neutral-400)]" />
+          <span className="m-brand-sub">ITP Tracker</span>
         </Link>
         <PrintButton />
+      </header>
+
+      <div className="m-pad m-rule-strong pb-5 pt-7">
+        <Link href={`/projects/${id}`} className="m-eyebrow m-noprint text-[var(--color-neutral-700)]">
+          ← Back to checklist
+        </Link>
+        <h1 className="m-display mt-2.5">Daily report</h1>
+        <div className="mt-2 text-[13px] text-[var(--color-neutral-700)]">
+          {project?.name} · {project?.company} · {reportDate}
+        </div>
       </div>
 
-      <h1 className="text-xl font-semibold text-zinc-900">Daily ITP Report</h1>
-      <p className="text-sm text-zinc-500">
-        {project?.name} ({project?.company}) — {reportDate}
-      </p>
-
-      <div className="mt-6 grid grid-cols-3 gap-3">
+      <div className="m-cells">
         {(checkpoints ?? []).map((cp) => {
           const actual = checkpointCounts.get(cp.id) ?? 0;
           const met = actual >= cp.target_count;
           return (
             <div
               key={cp.id}
-              className={`rounded-lg border p-3 ${met ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"}`}
+              style={
+                met
+                  ? { background: "var(--color-neutral-200)", color: "var(--color-text)" }
+                  : { background: "var(--color-accent)", color: "var(--color-bg)" }
+              }
             >
-              <p className="text-xs font-medium text-zinc-600">
-                {cp.label} ({cp.time_of_day.slice(0, 5)})
-              </p>
-              <p className="text-lg font-semibold text-zinc-900">
-                {actual}/{cp.target_count}
-              </p>
+              <div className="m-eyebrow">
+                {cp.label} · {cp.time_of_day.slice(0, 5)}
+              </div>
+              <div className="mt-1.5 text-[34px] font-black leading-tight tracking-tight">
+                {actual} / {cp.target_count}
+              </div>
+              <div className="m-eyebrow mt-1 opacity-80">{met ? "Target met" : "Outstanding"}</div>
             </div>
           );
         })}
       </div>
 
-      <div className="mt-8 overflow-x-auto print:overflow-visible">
-      <table className="w-full min-w-[640px] text-sm print:min-w-0">
-        <thead>
-          <tr className="border-b border-zinc-200 text-left text-xs uppercase text-zinc-400">
-            <th className="py-2">Photo</th>
-            <th className="py-2">Time</th>
-            <th className="py-2">Submitted by</th>
-            <th className="py-2">Location</th>
-            <th className="py-2">Item</th>
-            <th className="py-2">Note</th>
-          </tr>
-        </thead>
-        <tbody>
-          {(submissions ?? []).map((s) => (
-            <tr key={s.id} className="border-b border-zinc-100">
-              <td className="py-2">
-                {(() => {
-                  const url = photoUrls.get(s.id);
-                  if (!url) return <span className="text-xs text-zinc-300">—</span>;
-                  const isImage = s.mime_type?.startsWith("image/") ?? true;
-                  if (isImage) {
-                    return (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={url} alt="ITP submission" className="h-12 w-12 rounded object-cover" />
-                    );
-                  }
-                  return (
-                    <a
-                      href={url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex h-12 w-12 flex-col items-center justify-center rounded border border-zinc-200 bg-zinc-50 text-[9px] text-zinc-500 hover:bg-zinc-100"
-                      title={s.file_name ?? "document"}
-                    >
-                      📄
-                      <span className="truncate px-0.5">{s.file_name?.split(".").pop() ?? "file"}</span>
-                    </a>
-                  );
-                })()}
-              </td>
-              <td className="py-2 text-zinc-500">
-                {new Date(s.submitted_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-              </td>
-              <td className="py-2">
-                {s.profiles?.full_name ?? s.profiles?.email ?? s.slack_display_name ?? "Unknown"}
-                {s.submitted_via === "slack" && (
-                  <span className="ml-1.5 rounded-full bg-violet-100 px-1.5 py-0.5 text-[9px] font-medium uppercase text-violet-700">
-                    Slack
-                  </span>
-                )}
-              </td>
-              <td className="py-2 text-zinc-500">{s.itp_items?.location_path}</td>
-              <td className="py-2">{s.itp_items?.alias} — {s.itp_items?.description}</td>
-              <td className="py-2 text-zinc-500">{s.note ?? "—"}</td>
-            </tr>
-          ))}
-          {(submissions ?? []).length === 0 && (
+      <div className="m-pad pb-16">
+        <table className="m-table">
+          <thead>
             <tr>
-              <td colSpan={6} className="py-6 text-center text-zinc-400">
-                No submissions recorded for {reportDate}.
-              </td>
+              <th style={{ width: 68 }}>Evidence</th>
+              <th style={{ width: 74 }}>Time</th>
+              <th>Submitted by</th>
+              <th className="m-hide-sm">Location</th>
+              <th>Item</th>
+              <th className="m-hide-sm">Note</th>
             </tr>
-          )}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {(submissions ?? []).map((s) => {
+              const url = photoUrls.get(s.id);
+              const isImage = s.mime_type?.startsWith("image/") ?? true;
+              return (
+                <tr key={s.id}>
+                  <td>
+                    {!url ? (
+                      <span className="text-xs text-[var(--color-neutral-400)]">—</span>
+                    ) : isImage ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={url}
+                        alt="ITP submission"
+                        className="grayscale h-[52px] w-[52px] object-cover"
+                      />
+                    ) : (
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={s.file_name ?? "document"}
+                        className="flex h-[52px] w-[52px] items-center justify-center border border-[var(--color-neutral-300)] bg-[var(--color-neutral-200)] text-[9px] font-bold uppercase tracking-wider text-[var(--color-neutral-700)]"
+                      >
+                        {s.file_name?.split(".").pop() ?? "file"}
+                      </a>
+                    )}
+                  </td>
+                  <td className="tabular-nums text-[var(--color-neutral-700)]">
+                    {new Date(s.submitted_at).toLocaleTimeString("en-AU", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      hour12: false,
+                    })}
+                  </td>
+                  <td>
+                    {s.profiles?.full_name ?? s.profiles?.email ?? s.slack_display_name ?? "Unknown"}
+                    <span
+                      className="m-eyebrow block"
+                      style={{
+                        color:
+                          s.submitted_via === "slack"
+                            ? "var(--color-accent-700)"
+                            : "var(--color-neutral-500)",
+                      }}
+                    >
+                      {s.submitted_via === "slack" ? "via Slack" : "via app"}
+                    </span>
+                  </td>
+                  <td className="m-hide-sm text-[var(--color-neutral-700)]">{s.itp_items?.location_path}</td>
+                  <td>
+                    {s.itp_items?.alias} — {s.itp_items?.description}
+                  </td>
+                  <td className="m-hide-sm text-[var(--color-neutral-700)]">{s.note ?? "—"}</td>
+                </tr>
+              );
+            })}
+            {(submissions ?? []).length === 0 && (
+              <tr>
+                <td colSpan={6} className="py-14 text-sm text-[var(--color-neutral-600)]">
+                  No submissions recorded for {reportDate}.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );

@@ -22,6 +22,10 @@ export async function GET(request: Request) {
         ? "coordinator"
         : "site_worker";
 
+      const fullName =
+        (data.user.user_metadata?.full_name as string | undefined)?.trim() ||
+        data.user.email!.split("@")[0];
+
       // Runs as service role, not the user's own RLS-bound session: creating
       // a profile row is internal bookkeeping the user isn't "doing"
       // themselves, and depending on getting an INSERT policy exactly right
@@ -33,7 +37,7 @@ export async function GET(request: Request) {
         {
           id: data.user.id,
           email: data.user.email!,
-          full_name: data.user.email!.split("@")[0],
+          full_name: fullName,
           role,
         },
         { onConflict: "id", ignoreDuplicates: true },

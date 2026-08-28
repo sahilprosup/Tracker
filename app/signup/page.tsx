@@ -2,44 +2,39 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
-type Mode = "sign-in" | "forgot" | "forgot-sent";
-
-export default function LoginPage() {
-  const router = useRouter();
-  const [mode, setMode] = useState<Mode>("sign-in");
+export default function SignupPage() {
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  async function handleSignIn(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    setLoading(true);
 
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-
-    setLoading(false);
-    if (error) {
-      setError(error.message);
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
       return;
     }
-    router.push("/dashboard");
-    router.refresh();
-  }
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
 
-  async function handleForgot(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
     setLoading(true);
-
     const supabase = createClient();
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/api/auth/callback?next=/reset-password`,
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { full_name: fullName },
+        emailRedirectTo: `${window.location.origin}/api/auth/callback`,
+      },
     });
 
     setLoading(false);
@@ -47,7 +42,7 @@ export default function LoginPage() {
       setError(error.message);
       return;
     }
-    setMode("forgot-sent");
+    setSent(true);
   }
 
   return (
@@ -87,93 +82,49 @@ export default function LoginPage() {
       {/* Form — flush left, never centered */}
       <main className="flex flex-col justify-center px-6 py-12 lg:px-16 lg:py-14">
         <div className="w-full max-w-[460px]">
-          {mode === "forgot-sent" ? (
+          {sent ? (
             <div>
               <div className="m-kicker">Check your inbox</div>
-              <h1 className="m-display mt-3.5">Link sent.</h1>
+              <h1 className="m-display mt-3.5">Almost there.</h1>
               <p className="mt-4 max-w-[42ch] text-base leading-relaxed text-[var(--color-neutral-700)]">
-                We emailed a password reset link to{" "}
-                <strong className="text-[var(--color-text)]">{email}</strong>. It expires in 15 minutes.
+                We emailed a verification link to{" "}
+                <strong className="text-[var(--color-text)]">{email}</strong>. Confirm it to activate
+                your account, then sign in.
               </p>
               <div className="mt-7 flex flex-wrap items-center gap-5 border-t-2 border-[var(--color-divider)] pt-5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode("sign-in");
-                    setError(null);
-                  }}
+                <Link
+                  href="/login"
                   className="border-b-2 border-[var(--color-accent)] text-[13px] font-bold uppercase tracking-[0.08em]"
                 >
                   Back to sign in
-                </button>
+                </Link>
               </div>
             </div>
-          ) : mode === "forgot" ? (
-            <form onSubmit={handleForgot}>
-              <div className="m-kicker">Reset password</div>
-              <h1 className="m-display mt-3.5">Forgot it happens.</h1>
+          ) : (
+            <form onSubmit={handleSubmit}>
+              <div className="m-kicker">Create account</div>
+              <h1 className="m-display mt-3.5">Join the site.</h1>
               <p className="mt-4 max-w-[40ch] text-base leading-relaxed text-[var(--color-neutral-700)]">
-                Enter your work email and we&apos;ll send you a link to set a new password.
+                Set up your account with your work email and a password.
               </p>
 
               <div className="mt-8 flex flex-col gap-4">
                 <div>
-                  <label htmlFor="forgot-email" className="m-label mb-2 block">
-                    Work email
+                  <label htmlFor="fullName" className="m-label mb-2 block">
+                    Full name
                   </label>
                   <input
-                    id="forgot-email"
-                    type="email"
+                    id="fullName"
+                    type="text"
                     required
-                    autoComplete="email"
-                    placeholder="name@prolinegroup.au"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    autoComplete="name"
+                    placeholder="Jane Smith"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
                     className="m-input m-input--lg"
                   />
                 </div>
 
-                {error && (
-                  <div
-                    className="border-l-4 px-3.5 py-3 text-[13px] font-semibold leading-snug"
-                    style={{
-                      background: "var(--color-accent-200)",
-                      borderColor: "var(--color-accent)",
-                      color: "var(--color-accent-800)",
-                    }}
-                  >
-                    {error}
-                  </div>
-                )}
-
-                <button type="submit" disabled={loading} className="m-btn m-btn--primary m-btn--lg m-btn--block">
-                  <span>{loading ? "Sending…" : "Send reset link"}</span>
-                  <span className="text-[17px]">→</span>
-                </button>
-              </div>
-
-              <div className="mt-7 border-t-2 border-[var(--color-divider)] pt-5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode("sign-in");
-                    setError(null);
-                  }}
-                  className="text-[13px] font-bold uppercase tracking-[0.08em] text-[var(--color-neutral-700)]"
-                >
-                  ← Back to sign in
-                </button>
-              </div>
-            </form>
-          ) : (
-            <form onSubmit={handleSignIn}>
-              <div className="m-kicker">Sign in</div>
-              <h1 className="m-display mt-3.5">Welcome back.</h1>
-              <p className="mt-4 max-w-[40ch] text-base leading-relaxed text-[var(--color-neutral-700)]">
-                Sign in to your sites, checklists and today&apos;s checkpoints.
-              </p>
-
-              <div className="mt-8 flex flex-col gap-4">
                 <div>
                   <label htmlFor="email" className="m-label mb-2 block">
                     Work email
@@ -191,29 +142,33 @@ export default function LoginPage() {
                 </div>
 
                 <div>
-                  <div className="mb-2 flex items-baseline justify-between">
-                    <label htmlFor="password" className="m-label">
-                      Password
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMode("forgot");
-                        setError(null);
-                      }}
-                      className="m-label text-[var(--color-accent)]"
-                    >
-                      Forgot?
-                    </button>
-                  </div>
+                  <label htmlFor="password" className="m-label mb-2 block">
+                    Password
+                  </label>
                   <input
                     id="password"
                     type="password"
                     required
-                    autoComplete="current-password"
-                    placeholder="••••••••"
+                    autoComplete="new-password"
+                    placeholder="At least 8 characters"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    className="m-input m-input--lg"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="confirmPassword" className="m-label mb-2 block">
+                    Confirm password
+                  </label>
+                  <input
+                    id="confirmPassword"
+                    type="password"
+                    required
+                    autoComplete="new-password"
+                    placeholder="Repeat password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
                     className="m-input m-input--lg"
                   />
                 </div>
@@ -232,25 +187,20 @@ export default function LoginPage() {
                 )}
 
                 <button type="submit" disabled={loading} className="m-btn m-btn--primary m-btn--lg m-btn--block">
-                  <span>{loading ? "Signing in…" : "Sign in"}</span>
+                  <span>{loading ? "Creating account…" : "Create account"}</span>
                   <span className="text-[17px]">→</span>
                 </button>
               </div>
 
               <div className="mt-7 flex items-baseline justify-between border-t-2 border-[var(--color-divider)] pt-5">
-                <span className="text-[13px] text-[var(--color-neutral-700)]">No account yet?</span>
+                <span className="text-[13px] text-[var(--color-neutral-700)]">Already have an account?</span>
                 <Link
-                  href="/signup"
+                  href="/login"
                   className="border-b-2 border-[var(--color-accent)] text-[13px] font-bold uppercase tracking-[0.08em]"
                 >
-                  Create one
+                  Sign in
                 </Link>
               </div>
-
-              <p className="mt-9 max-w-[46ch] text-[11px] leading-relaxed text-[var(--color-neutral-600)]">
-                Access is limited to prolinegroup.au addresses and invited subcontractors. Submissions are
-                logged against your name and pushed to Visibuild.
-              </p>
             </form>
           )}
         </div>

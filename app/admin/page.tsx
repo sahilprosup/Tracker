@@ -2,6 +2,29 @@ import Link from "next/link";
 import { requireCoordinator } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
+const TOOLS = [
+  {
+    href: "/admin/summary",
+    name: "Cross-project summary",
+    body: "Today's submissions and checkpoint hits across every site — the same data behind the end-of-day Slack report.",
+  },
+  {
+    href: "/admin/slack",
+    name: "Slack channel mapping",
+    body: "Link each project to its Slack channel so photos posted there are logged automatically.",
+  },
+  {
+    href: "/admin/checkpoints",
+    name: "Checkpoints",
+    body: "Edit the 08:30 / 11:30 / 14:30 targets per project.",
+  },
+  {
+    href: "/admin/sync-log",
+    name: "Visibuild sync log",
+    body: "Every attempt to push a submission back into Visibuild, with the failures first.",
+  },
+];
+
 export default async function AdminPage() {
   await requireCoordinator();
   const supabase = await createClient();
@@ -21,57 +44,70 @@ export default async function AdminPage() {
     .eq("active", true);
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-10">
-      <Link href="/dashboard" className="text-xs text-zinc-400 hover:text-zinc-600">
-        ← Dashboard
-      </Link>
-      <h1 className="mt-1 text-2xl font-semibold text-zinc-900">Admin</h1>
-      <p className="text-sm text-zinc-500">Coordinator tools: checkpoints, sync health, projects.</p>
+    <div>
+      <header className="m-header">
+        <Link href="/dashboard" className="m-brand">
+          <span className="m-brand-mark">ProLine</span>
+          <span className="inline-block h-[13px] w-px bg-[var(--color-neutral-400)]" />
+          <span className="m-brand-sub">ITP Tracker</span>
+        </Link>
+        <Link href="/dashboard" className="m-navlink">
+          Dashboard
+        </Link>
+      </header>
 
-      <div className="mt-6 grid grid-cols-3 gap-3">
-        <div className="rounded-lg border border-zinc-200 bg-white p-4">
-          <p className="text-xs text-zinc-500">Active projects</p>
-          <p className="text-2xl font-semibold">{totalProjects ?? 0}</p>
-        </div>
-        <div className="rounded-lg border border-zinc-200 bg-white p-4">
-          <p className="text-xs text-zinc-500">Total submissions</p>
-          <p className="text-2xl font-semibold">{totalSubmissions ?? 0}</p>
-        </div>
-        <div className={`rounded-lg border p-4 ${pendingSync ? "border-red-200 bg-red-50" : "border-zinc-200 bg-white"}`}>
-          <p className="text-xs text-zinc-500">Failed Visibuild syncs</p>
-          <p className="text-2xl font-semibold">{pendingSync ?? 0}</p>
+      <div className="m-pad m-rule-strong pb-5 pt-7">
+        <Link href="/dashboard" className="m-eyebrow text-[var(--color-neutral-700)]">
+          ← Dashboard
+        </Link>
+        <h1 className="m-display mt-2.5">Admin</h1>
+        <div className="mt-2 text-[13px] text-[var(--color-neutral-700)]">
+          Checkpoints, Slack mapping and Visibuild sync health.
         </div>
       </div>
 
-      <div className="mt-8 space-y-2">
-        <Link
-          href="/admin/summary"
-          className="block rounded-lg border border-zinc-200 bg-white p-4 hover:border-zinc-400"
+      <div className="m-cells">
+        <div>
+          <div className="text-4xl font-black leading-none">{totalProjects ?? 0}</div>
+          <div className="m-label mt-1.5">Active projects</div>
+        </div>
+        <div>
+          <div className="text-4xl font-black leading-none">{totalSubmissions ?? 0}</div>
+          <div className="m-label mt-1.5">Total submissions</div>
+        </div>
+        <div
+          style={
+            pendingSync
+              ? { background: "var(--color-accent)", color: "var(--color-bg)" }
+              : undefined
+          }
         >
-          <p className="font-medium text-zinc-900">Cross-project summary</p>
-          <p className="text-sm text-zinc-500">Today&apos;s submissions and checkpoint hits across every project — the same data behind the end-of-day Slack report.</p>
-        </Link>
-        <Link
-          href="/admin/slack"
-          className="block rounded-lg border border-zinc-200 bg-white p-4 hover:border-zinc-400"
-        >
-          <p className="font-medium text-zinc-900">Slack channel mapping</p>
-          <p className="text-sm text-zinc-500">Link each project to its Slack channel so photos posted there get logged automatically.</p>
-        </Link>
-        <Link
-          href="/admin/checkpoints"
-          className="block rounded-lg border border-zinc-200 bg-white p-4 hover:border-zinc-400"
-        >
-          <p className="font-medium text-zinc-900">Checkpoints</p>
-          <p className="text-sm text-zinc-500">Edit the 08:30 / 11:30 / 14:30 targets per project.</p>
-        </Link>
-        <Link
-          href="/admin/sync-log"
-          className="block rounded-lg border border-zinc-200 bg-white p-4 hover:border-zinc-400"
-        >
-          <p className="font-medium text-zinc-900">Visibuild sync log</p>
-          <p className="text-sm text-zinc-500">Every attempt to push a submission back into Visibuild.</p>
-        </Link>
+          <div className="text-4xl font-black leading-none">{pendingSync ?? 0}</div>
+          <div className="m-label mt-1.5" style={pendingSync ? { color: "inherit" } : undefined}>
+            Failed Visibuild syncs
+          </div>
+        </div>
+      </div>
+
+      <div className="m-pad pb-16">
+        {TOOLS.map((t) => (
+          <Link
+            key={t.href}
+            href={t.href}
+            className="m-rule grid grid-cols-[minmax(0,1fr)_40px] items-center gap-4 py-5"
+          >
+            <div>
+              <div className="text-[19px] font-extrabold tracking-tight">{t.name}</div>
+              <div
+                className="mt-1 max-w-[62ch] text-[13px] text-[var(--color-neutral-700)]"
+                style={{ textWrap: "pretty" }}
+              >
+                {t.body}
+              </div>
+            </div>
+            <div className="text-right text-[19px] font-bold text-[var(--color-accent)]">→</div>
+          </Link>
+        ))}
       </div>
     </div>
   );

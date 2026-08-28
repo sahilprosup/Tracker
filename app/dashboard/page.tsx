@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { SignOutButton } from "@/app/components/sign-out-button";
+import { ProjectIndex } from "@/app/components/project-index";
 import { nowInMelbourne, melbourneDayBoundsUtc } from "@/lib/time";
 
 export default async function DashboardPage() {
@@ -20,9 +21,13 @@ export default async function DashboardPage() {
     .eq("active", true)
     .order("name");
 
-  const { data: itemCounts } = await supabase
-    .from("itp_items")
-    .select("project_id, status");
+  const { data: itemCounts } = await supabase.from("itp_items").select("project_id, status");
+
+  const { data: lastActivity } = await supabase
+    .from("submissions")
+    .select("submitted_at, itp_items(project_id)")
+    .order("submitted_at", { ascending: false })
+    .limit(500);
 
   const { start: todayStart } = melbourneDayBoundsUtc(nowInMelbourne().date);
   const { count: myTodayCount } = user
@@ -33,72 +38,79 @@ export default async function DashboardPage() {
         .gte("submitted_at", todayStart)
     : { count: null };
 
-  const countsByProject = new Map<string, { total: number; submitted: number; closed: number }>();
+  const countsByProject = new Map<string, { total: number; done: number }>();
   for (const row of itemCounts ?? []) {
-    const entry = countsByProject.get(row.project_id) ?? { total: 0, submitted: 0, closed: 0 };
+    const entry = countsByProject.get(row.project_id) ?? { total: 0, done: 0 };
     entry.total += 1;
-    if (row.status === "submitted") entry.submitted += 1;
-    if (row.status === "closed") entry.closed += 1;
+    if (row.status === "submitted" || row.status === "closed") entry.done += 1;
     countsByProject.set(row.project_id, entry);
   }
 
+  const lastByProject = new Map<string, string>();
+  for (const row of (lastActivity ?? []) as { submitted_at: string; itp_items: { project_id: string }[] | null }[]) {
+    const pid = row.itp_items?.[0]?.project_id;
+    if (pid && !lastByProject.has(pid)) lastByProject.set(pid, row.submitted_at);
+  }
+
+  const openItems = [...countsByProject.values()].reduce((a, c) => a + (c.total - c.done), 0);
+
+  const rows = (projects ?? []).map((p) => {
+    const c = countsByProject.get(p.id) ?? { total: 0, done: 0 };
+    return {
+      id: p.id,
+      name: p.name,
+      company: p.company ?? "—",
+      done: c.done,
+      total: c.total,
+      lastActivity: lastByProject.get(p.id) ?? null,
+    };
+  });
+
   return (
-    <div className="mx-auto max-w-5xl px-6 py-10">
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-zinc-900">Projects</h1>
-          <p className="text-sm text-zinc-500">ITP checklist progress across all active sites.</p>
-        </div>
-        <div className="flex items-center gap-3">
+    <div>
+      <header className="m-header">
+        <Link href="/dashboard" className="m-brand">
+          <span className="m-brand-mark">ProLine</span>
+          <span className="inline-block h-[13px] w-px bg-[var(--color-neutral-400)]" />
+          <span className="m-brand-sub">ITP Tracker</span>
+        </Link>
+        <div className="flex items-center gap-4">
           {isCoordinator && (
-            <Link
-              href="/admin"
-              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-100"
-            >
+            <Link href="/admin" className="m-navlink">
               Admin
             </Link>
           )}
           <SignOutButton />
         </div>
+      </header>
+
+      <div className="m-pad m-rule-strong grid grid-cols-1 items-end gap-8 pb-5 pt-9 md:grid-cols-[minmax(0,1fr)_auto]">
+        <div>
+          <div className="m-kicker mb-2.5">
+            {new Date().toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long" })}
+          </div>
+          <h1 className="m-display">Projects</h1>
+        </div>
+        <div className="m-stats">
+          <div>
+            <div className="m-stat-value">{rows.length}</div>
+            <div className="m-label mt-1.5">Active sites</div>
+          </div>
+          <div>
+            <div className="m-stat-value">{openItems}</div>
+            <div className="m-label mt-1.5">Open items</div>
+          </div>
+          <div>
+            <div className="m-stat-value m-stat-value--accent">{myTodayCount ?? 0}</div>
+            <div className="m-label mt-1.5">Your uploads today</div>
+          </div>
+        </div>
       </div>
 
-      <div className="mb-6 rounded-lg border border-zinc-200 bg-white px-4 py-3">
-        <p className="text-xs text-zinc-500">Your submissions today</p>
-        <p className="text-xl font-semibold text-zinc-900">{myTodayCount ?? 0}</p>
-      </div>
+      <ProjectIndex rows={rows} />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {(projects ?? []).map((project) => {
-          const counts = countsByProject.get(project.id) ?? { total: 0, submitted: 0, closed: 0 };
-          const done = counts.submitted + counts.closed;
-          const pct = counts.total ? Math.round((done / counts.total) * 100) : 0;
-
-          return (
-            <Link
-              key={project.id}
-              href={`/projects/${project.id}`}
-              className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm transition hover:border-zinc-400"
-            >
-              <h2 className="font-medium text-zinc-900">{project.name}</h2>
-              <p className="text-xs text-zinc-500">{project.company}</p>
-              {counts.total > 0 ? (
-                <>
-                  <div className="mt-3 h-2 w-full rounded-full bg-zinc-100">
-                    <div
-                      className="h-2 rounded-full bg-emerald-500"
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                  <p className="mt-1 text-xs text-zinc-500">
-                    {done}/{counts.total} ITP items submitted or closed ({pct}%)
-                  </p>
-                </>
-              ) : (
-                <p className="mt-3 text-xs text-zinc-400">No ITP items loaded yet</p>
-              )}
-            </Link>
-          );
-        })}
+      <div className="m-pad m-rule-strong border-b-0 border-t-2 pb-16 pt-7 text-xs text-[var(--color-neutral-600)]">
+        Synced from Visibuild · Slack ingest active
       </div>
     </div>
   );

@@ -30,33 +30,33 @@ export default async function CrossProjectSummaryPage({
 
   const perProject = await Promise.all(
     (projects ?? []).map(async (project) => {
-      const [{ data: items }, { data: checkpoints }] = await Promise.all([
-        supabase.from("itp_items").select("id").eq("project_id", project.id),
-        supabase.from("checkpoints").select("id, target_count").eq("project_id", project.id),
-      ]);
-      const itemIds = (items ?? []).map((i) => i.id);
+      const { data: checkpoints } = await supabase
+        .from("checkpoints")
+        .select("id, target_count")
+        .eq("project_id", project.id);
 
+      // Filtering via itp_items!inner + .eq("itp_items.project_id", ...) does
+      // the item-ownership check as a server-side join, instead of fetching
+      // every item id for the project and passing them all in an .in() list -
+      // which broke outright (URL too long, Supabase gateway 400s it) on any
+      // project with a few hundred+ items.
       const [{ count: submissionCount }, checkpointCounts] = await Promise.all([
-        itemIds.length
-          ? supabase
-              .from("submissions")
-              .select("id", { count: "exact", head: true })
-              .in("itp_item_id", itemIds)
-              .gte("submitted_at", dayStart)
-              .lt("submitted_at", dayEnd)
-          : Promise.resolve({ count: 0 }),
+        supabase
+          .from("submissions")
+          .select("id, itp_items!inner(project_id)", { count: "exact", head: true })
+          .eq("itp_items.project_id", project.id)
+          .gte("submitted_at", dayStart)
+          .lt("submitted_at", dayEnd),
         Promise.all(
           (checkpoints ?? []).map((cp) =>
-            itemIds.length
-              ? supabase
-                  .from("submissions")
-                  .select("id", { count: "exact", head: true })
-                  .in("itp_item_id", itemIds)
-                  .eq("checkpoint_id", cp.id)
-                  .gte("submitted_at", dayStart)
-                  .lt("submitted_at", dayEnd)
-                  .then(({ count }) => (count ?? 0) >= cp.target_count)
-              : Promise.resolve(false),
+            supabase
+              .from("submissions")
+              .select("id, itp_items!inner(project_id)", { count: "exact", head: true })
+              .eq("itp_items.project_id", project.id)
+              .eq("checkpoint_id", cp.id)
+              .gte("submitted_at", dayStart)
+              .lt("submitted_at", dayEnd)
+              .then(({ count }) => (count ?? 0) >= cp.target_count),
           ),
         ),
       ]);

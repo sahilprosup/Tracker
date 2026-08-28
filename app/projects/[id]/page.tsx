@@ -6,10 +6,10 @@ import { AddItpItemForm } from "@/app/components/add-itp-item-form";
 import { MarkClosedButton } from "@/app/components/mark-closed-button";
 import type { ItpItem } from "@/lib/types";
 
-const STATUS_STYLES: Record<string, string> = {
-  open: "bg-zinc-100 text-zinc-600",
-  submitted: "bg-amber-100 text-amber-700",
-  closed: "bg-emerald-100 text-emerald-700",
+const TAG_CLASS: Record<string, string> = {
+  open: "m-tag m-tag--open",
+  submitted: "m-tag m-tag--submitted",
+  closed: "m-tag m-tag--closed",
 };
 
 export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
@@ -38,81 +38,106 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
     .eq("project_id", id)
     .order("location_path");
 
+  const all = (items ?? []) as ItpItem[];
+  const closed = all.filter((i) => i.status === "closed").length;
+
   const grouped = new Map<string, ItpItem[]>();
-  for (const item of (items ?? []) as ItpItem[]) {
+  for (const item of all) {
     const key = item.location_path ?? "Unassigned location";
     grouped.set(key, [...(grouped.get(key) ?? []), item]);
   }
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-10">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <Link href="/dashboard" className="text-xs text-zinc-400 hover:text-zinc-600">
+    <div>
+      <header className="m-header">
+        <Link href="/dashboard" className="m-brand">
+          <span className="m-brand-mark">ProLine</span>
+          <span className="inline-block h-[13px] w-px bg-[var(--color-neutral-400)]" />
+          <span className="m-brand-sub">ITP Tracker</span>
+        </Link>
+        <Link href={`/projects/${id}/report`} className="m-navlink">
+          Daily report
+        </Link>
+      </header>
+
+      <div className="m-pad m-rule-strong grid grid-cols-1 items-end gap-6 pb-5 pt-7 md:grid-cols-[minmax(0,1fr)_auto]">
+        <div className="min-w-0">
+          <Link href="/dashboard" className="m-eyebrow text-[var(--color-neutral-700)]">
             ← All projects
           </Link>
-          <h1 className="text-2xl font-semibold text-zinc-900">{project?.name}</h1>
-          <p className="text-sm text-zinc-500">{project?.company}</p>
+          <h1 className="m-display mt-2.5" style={{ textWrap: "pretty" }}>
+            {project.name}
+          </h1>
+          <div className="mt-2 text-[13px] text-[var(--color-neutral-700)]">
+            {project.company} ·{" "}
+            {all.length ? `${closed} of ${all.length} ITP items closed` : "No ITP items loaded"}
+          </div>
         </div>
-        <Link
-          href={`/projects/${id}/report`}
-          className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-100"
-        >
-          View daily report
-        </Link>
+        <div className="flex flex-wrap gap-2.5">
+          <Link href={`/projects/${id}/report`} className="m-btn">
+            Daily report
+          </Link>
+        </div>
       </div>
 
-      {grouped.size === 0 && (
-        <p className="rounded-md border border-dashed border-zinc-300 p-6 text-sm text-zinc-500">
-          No ITP items loaded for this project yet.
-        </p>
-      )}
-
       {isCoordinator && (
-        <div className="mb-6">
+        <div className="m-pad m-rule py-4">
           <AddItpItemForm projectId={id} />
         </div>
       )}
 
-      <div className="space-y-6">
-        {[...grouped.entries()].map(([location, locationItems]) => (
-          <div key={location} className="rounded-lg border border-zinc-200 bg-white">
-            <div className="border-b border-zinc-100 px-4 py-2 text-sm font-medium text-zinc-700">
-              {location}
-            </div>
-            <ul className="divide-y divide-zinc-100">
-              {locationItems.map((item) => (
-                <li key={item.id} className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-mono text-zinc-400">{item.alias}</span>
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-medium uppercase ${STATUS_STYLES[item.status]}`}
-                      >
-                        {item.status}
-                      </span>
-                      <span className="text-[10px] uppercase text-zinc-400">{item.visi_type.replace("_", " ")}</span>
-                    </div>
-                    <p className="mt-1 text-sm text-zinc-800">{item.description}</p>
-                    {item.assignee && (
-                      <p className="mt-0.5 text-xs text-zinc-400">Assignee: {item.assignee}</p>
-                    )}
-                  </div>
-                  {item.status === "open" ? (
-                    <SubmitPhotoButton itpItemId={item.id} />
-                  ) : isCoordinator ? (
-                    <MarkClosedButton itemId={item.id} status={item.status} />
-                  ) : (
-                    <span className="whitespace-nowrap text-xs text-zinc-400">
-                      {item.status === "closed" ? "Closed ✓" : "Submitted ✓"}
-                    </span>
-                  )}
-                </li>
-              ))}
-            </ul>
+      {grouped.size === 0 && (
+        <p className="m-pad py-14 text-sm text-[var(--color-neutral-600)]">
+          No ITP items loaded for this project yet. Run a Visibuild sync or add one manually.
+        </p>
+      )}
+
+      {[...grouped.entries()].map(([location, locationItems]) => (
+        <section key={location}>
+          <div className="m-pad m-rule-strong flex items-baseline justify-between gap-4 pb-2 pt-4.5">
+            <h2 className="text-[13px] font-extrabold uppercase tracking-[0.12em]">{location}</h2>
+            <span className="m-eyebrow text-[var(--color-neutral-700)]">
+              {locationItems.length} items · {locationItems.filter((i) => i.status === "closed").length} closed
+            </span>
           </div>
-        ))}
-      </div>
+
+          {locationItems.map((item) => (
+            <div key={item.id} className="m-item-row">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <span className="font-mono text-[11px] font-bold tracking-wide text-[var(--color-neutral-600)]">
+                    {item.alias}
+                  </span>
+                  <span className={TAG_CLASS[item.status]}>{item.status}</span>
+                  <span className="m-eyebrow text-[var(--color-neutral-500)]">
+                    {item.visi_type.replace("_", " ")}
+                  </span>
+                </div>
+                <div className="mt-1.5 text-base font-medium leading-snug" style={{ textWrap: "pretty" }}>
+                  {item.description}
+                </div>
+                {item.assignee && (
+                  <div className="mt-1 text-xs text-[var(--color-neutral-600)]">
+                    Assigned to {item.assignee}
+                  </div>
+                )}
+              </div>
+
+              {item.status === "open" ? (
+                <SubmitPhotoButton itpItemId={item.id} itemLabel={`${item.alias ?? ""} — ${item.description}`} />
+              ) : isCoordinator ? (
+                <MarkClosedButton itemId={item.id} status={item.status} />
+              ) : (
+                <span className="m-eyebrow whitespace-nowrap text-[var(--color-neutral-600)]">
+                  {item.status === "closed" ? "Closed ✓" : "Submitted ✓"}
+                </span>
+              )}
+            </div>
+          ))}
+        </section>
+      ))}
+
+      <div className="pb-16" />
     </div>
   );
 }

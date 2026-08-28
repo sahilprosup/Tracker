@@ -29,19 +29,11 @@ export default async function AdminPage() {
   await requireCoordinator();
   const supabase = await createClient();
 
-  const { count: pendingSync } = await supabase
-    .from("visibuild_sync_log")
-    .select("id", { count: "exact", head: true })
-    .eq("status", "failed");
-
-  const { count: totalSubmissions } = await supabase
-    .from("submissions")
-    .select("id", { count: "exact", head: true });
-
-  const { count: totalProjects } = await supabase
-    .from("projects")
-    .select("id", { count: "exact", head: true })
-    .eq("active", true);
+  const [{ count: pendingSync }, { count: totalSubmissions }, { count: totalProjects }] = await Promise.all([
+    supabase.from("visibuild_sync_log").select("id", { count: "exact", head: true }).eq("status", "failed"),
+    supabase.from("submissions").select("id", { count: "exact", head: true }),
+    supabase.from("projects").select("id", { count: "exact", head: true }).eq("active", true),
+  ]);
 
   return (
     <div>

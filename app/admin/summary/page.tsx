@@ -28,51 +28,55 @@ export default async function CrossProjectSummaryPage({
 
   const { start: dayStart, end: dayEnd } = melbourneDayBoundsUtc(reportDate);
 
-  const rows = [];
+  const perProject = await Promise.all(
+    (projects ?? []).map(async (project) => {
+      const [{ data: items }, { data: checkpoints }] = await Promise.all([
+        supabase.from("itp_items").select("id").eq("project_id", project.id),
+        supabase.from("checkpoints").select("id, target_count").eq("project_id", project.id),
+      ]);
+      const itemIds = (items ?? []).map((i) => i.id);
+
+      const [{ count: submissionCount }, checkpointCounts] = await Promise.all([
+        itemIds.length
+          ? supabase
+              .from("submissions")
+              .select("id", { count: "exact", head: true })
+              .in("itp_item_id", itemIds)
+              .gte("submitted_at", dayStart)
+              .lt("submitted_at", dayEnd)
+          : Promise.resolve({ count: 0 }),
+        Promise.all(
+          (checkpoints ?? []).map((cp) =>
+            itemIds.length
+              ? supabase
+                  .from("submissions")
+                  .select("id", { count: "exact", head: true })
+                  .in("itp_item_id", itemIds)
+                  .eq("checkpoint_id", cp.id)
+                  .gte("submitted_at", dayStart)
+                  .lt("submitted_at", dayEnd)
+                  .then(({ count }) => (count ?? 0) >= cp.target_count)
+              : Promise.resolve(false),
+          ),
+        ),
+      ]);
+
+      const total = submissionCount ?? 0;
+      return {
+        project,
+        submissionCount: total,
+        checkpointsMet: checkpointCounts.filter(Boolean).length,
+        checkpointsTotal: (checkpoints ?? []).length,
+      };
+    }),
+  );
+
   let grandTotal = 0;
-
-  for (const project of projects ?? []) {
-    const { data: items } = await supabase.from("itp_items").select("id").eq("project_id", project.id);
-    const itemIds = (items ?? []).map((i) => i.id);
-
-    const { count: submissionCount } = itemIds.length
-      ? await supabase
-          .from("submissions")
-          .select("id", { count: "exact", head: true })
-          .in("itp_item_id", itemIds)
-          .gte("submitted_at", dayStart)
-          .lt("submitted_at", dayEnd)
-      : { count: 0 };
-
-    const { data: checkpoints } = await supabase
-      .from("checkpoints")
-      .select("id, target_count")
-      .eq("project_id", project.id);
-
-    let checkpointsMet = 0;
-    for (const cp of checkpoints ?? []) {
-      const { count } = itemIds.length
-        ? await supabase
-            .from("submissions")
-            .select("id", { count: "exact", head: true })
-            .in("itp_item_id", itemIds)
-            .eq("checkpoint_id", cp.id)
-            .gte("submitted_at", dayStart)
-            .lt("submitted_at", dayEnd)
-        : { count: 0 };
-      if ((count ?? 0) >= cp.target_count) checkpointsMet += 1;
-    }
-
-    const total = submissionCount ?? 0;
-    grandTotal += total;
-    if (total === 0 && (checkpoints ?? []).length === 0) continue;
-
-    rows.push({
-      project,
-      submissionCount: total,
-      checkpointsMet,
-      checkpointsTotal: (checkpoints ?? []).length,
-    });
+  const rows = [];
+  for (const row of perProject) {
+    grandTotal += row.submissionCount;
+    if (row.submissionCount === 0 && row.checkpointsTotal === 0) continue;
+    rows.push(row);
   }
 
   rows.sort((a, b) => b.submissionCount - a.submissionCount);

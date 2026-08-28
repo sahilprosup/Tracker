@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getProfile } from "@/lib/auth";
 import { SubmitPhotoButton } from "@/app/components/submit-photo-button";
 import { AddItpItemForm } from "@/app/components/add-itp-item-form";
 import { MarkClosedButton } from "@/app/components/mark-closed-button";
@@ -69,23 +70,41 @@ export default async function ProjectPage({
   const { path: rawPath, unit: rawUnit } = await searchParams;
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const { data: profile } = user
-    ? await supabase.from("profiles").select("role").eq("id", user.id).single()
-    : { data: null };
-  const isCoordinator = profile?.role === "coordinator" || profile?.role === "admin";
+  const [
+    {
+      data: { session },
+    },
+    { data: project },
+  ] = await Promise.all([
+    // getSession() reads the cookie locally instead of round-tripping to
+    // Supabase Auth - safe here because the proxy middleware already called
+    // getUser() (which does hit the network) to validate/refresh it for
+    // every request that reaches this page.
+    supabase.auth.getSession(),
+    supabase.from("projects").select("id, name, company").eq("id", id).single(),
+  ]);
+  const user = session?.user ?? null;
 
-  const { data: project } = await supabase.from("projects").select("id, name, company").eq("id", id).single();
   if (!project) notFound();
 
-  const { data: itemsData } = await supabase
-    .from("itp_items")
-    .select("*")
-    .eq("project_id", id)
-    .order("location_order", { ascending: true, nullsFirst: false })
-    .order("location_path");
+  const [profile, { data: itemsData }] = await Promise.all([
+    user ? getProfile(supabase, user) : Promise.resolve(null),
+    supabase
+      .from("itp_items")
+      .select("*")
+      .eq("project_id", id)
+      // Visibuild's location tree has a manually-set sibling order that isn't
+      // alphabetical (e.g. "Small Plantroom Zone A4" is listed before "Big
+      // Plantroom Zone A2" under the same parent in Visibuild itself), so
+      // sorting the location_path string alphabetically scrambles sections
+      // compared to how they appear in Visibuild. location_order holds that
+      // real order where it's been backfilled; items without it (not yet
+      // backfilled for this project) sort alphabetically after everything
+      // that has an order, rather than being interleaved arbitrarily.
+      .order("location_order", { ascending: true, nullsFirst: false })
+      .order("location_path"),
+  ]);
+  const isCoordinator = profile?.role === "coordinator" || profile?.role === "admin";
   const all = (itemsData ?? []) as ItpItem[];
 
   const root = commonPrefixSegments(all.map((i) => i.location_path).filter((p): p is string => !!p));

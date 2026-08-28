@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { getProfile } from "@/lib/auth";
 import { SignOutButton } from "@/app/components/sign-out-button";
 import { ProjectIndex } from "@/app/components/project-index";
 import { nowInMelbourne, melbourneDayBoundsUtc } from "@/lib/time";
@@ -7,36 +8,42 @@ import { nowInMelbourne, melbourneDayBoundsUtc } from "@/lib/time";
 export default async function DashboardPage() {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const { data: profile } = user
-    ? await supabase.from("profiles").select("role").eq("id", user.id).single()
-    : { data: null };
-  const isCoordinator = profile?.role === "coordinator" || profile?.role === "admin";
-
-  const { data: projects } = await supabase
-    .from("projects")
-    .select("id, name, company, active")
-    .eq("active", true)
-    .order("name");
-
-  const { data: itemCounts } = await supabase.from("itp_items").select("project_id, status");
-
-  const { data: lastActivity } = await supabase
-    .from("submissions")
-    .select("submitted_at, itp_items(project_id)")
-    .order("submitted_at", { ascending: false })
-    .limit(500);
-
   const { start: todayStart } = melbourneDayBoundsUtc(nowInMelbourne().date);
-  const { count: myTodayCount } = user
-    ? await supabase
-        .from("submissions")
-        .select("id", { count: "exact", head: true })
-        .eq("submitted_by", user.id)
-        .gte("submitted_at", todayStart)
-    : { count: null };
+
+  const [
+    {
+      data: { session },
+    },
+    { data: projects },
+    { data: itemCounts },
+    { data: lastActivity },
+  ] = await Promise.all([
+    // getSession() reads the cookie locally instead of round-tripping to
+    // Supabase Auth - safe here because the proxy middleware already called
+    // getUser() (which does hit the network) to validate/refresh it for
+    // every request that reaches this page.
+    supabase.auth.getSession(),
+    supabase.from("projects").select("id, name, company, active").eq("active", true).order("name"),
+    supabase.from("itp_items").select("project_id, status"),
+    supabase
+      .from("submissions")
+      .select("submitted_at, itp_items(project_id)")
+      .order("submitted_at", { ascending: false })
+      .limit(500),
+  ]);
+  const user = session?.user ?? null;
+
+  const [profile, { count: myTodayCount }] = await Promise.all([
+    user ? getProfile(supabase, user) : Promise.resolve(null),
+    user
+      ? supabase
+          .from("submissions")
+          .select("id", { count: "exact", head: true })
+          .eq("submitted_by", user.id)
+          .gte("submitted_at", todayStart)
+      : Promise.resolve({ count: null }),
+  ]);
+  const isCoordinator = profile?.role === "coordinator" || profile?.role === "admin";
 
   const countsByProject = new Map<string, { total: number; done: number }>();
   for (const row of itemCounts ?? []) {

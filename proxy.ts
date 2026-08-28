@@ -23,9 +23,18 @@ export async function proxy(request: NextRequest) {
     },
   );
 
+  // getSession() only hits Supabase's Auth server (a network round trip) when
+  // the token is actually expired or close to it - refreshing it via the
+  // refresh token in that case. The rest of the time it just reads the
+  // already-signed session out of the cookie, no network call. That's the
+  // right trade-off for this check specifically: it only gates the
+  // redirect-to-login shortcut, not real data access - every actual data
+  // request is independently re-verified against the JWT by Postgres RLS
+  // regardless of what middleware decides here.
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    data: { session },
+  } = await supabase.auth.getSession();
+  const user = session?.user ?? null;
 
   const isAuthRoute =
     request.nextUrl.pathname.startsWith("/login") ||

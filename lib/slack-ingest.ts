@@ -1,4 +1,5 @@
 import { createServiceClient } from "./supabase/server";
+import { nowInMelbourne } from "./time";
 import {
   fetchChannelHistory,
   fetchUserEmail,
@@ -94,7 +95,7 @@ export async function ingestSlackChannel(project: {
 
     const submittedAtMs = Number(message.ts.split(".")[0]) * 1000;
     const submittedAt = new Date(submittedAtMs);
-    const nowTimeOfDay = submittedAt.toTimeString().slice(0, 8);
+    const nowTimeOfDay = nowInMelbourne(submittedAt).time;
     const checkpoint = (checkpoints ?? [])
       .filter((cp) => cp.time_of_day <= nowTimeOfDay)
       .sort((a, b) => (a.time_of_day < b.time_of_day ? 1 : -1))[0];

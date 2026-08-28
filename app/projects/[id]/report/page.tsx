@@ -29,19 +29,13 @@ export default async function ReportPage({
   const reportDate = date ?? nowInMelbourne().date;
   const supabase = await createClient();
 
-  const { data: project } = await supabase
-    .from("projects")
-    .select("id, name, company")
-    .eq("id", id)
-    .single();
-
-  const { data: checkpoints } = await supabase
-    .from("checkpoints")
-    .select("id, label, time_of_day, target_count")
-    .eq("project_id", id)
-    .order("time_of_day");
-
   const { start: dayStart, end: dayEnd } = melbourneDayBoundsUtc(reportDate);
+
+  const [{ data: project }, { data: checkpoints }, { data: itemIdRows }] = await Promise.all([
+    supabase.from("projects").select("id, name, company").eq("id", id).single(),
+    supabase.from("checkpoints").select("id, label, time_of_day, target_count").eq("project_id", id).order("time_of_day"),
+    supabase.from("itp_items").select("id").eq("project_id", id),
+  ]);
 
   const { data: submissions } = await supabase
     .from("submissions")
@@ -50,12 +44,7 @@ export default async function ReportPage({
     )
     .gte("submitted_at", dayStart)
     .lt("submitted_at", dayEnd)
-    .in(
-      "itp_item_id",
-      (
-        await supabase.from("itp_items").select("id").eq("project_id", id)
-      ).data?.map((r) => r.id) ?? [],
-    )
+    .in("itp_item_id", itemIdRows?.map((r) => r.id) ?? [])
     .order("submitted_at")
     .returns<SubmissionRow[]>();
 
@@ -65,9 +54,16 @@ export default async function ReportPage({
   }
 
   const photoUrls = new Map<string, string>();
-  for (const s of submissions ?? []) {
-    const { data } = await supabase.storage.from("itp-photos").createSignedUrl(s.photo_path, 3600);
-    if (data?.signedUrl) photoUrls.set(s.id, data.signedUrl);
+  const signedUrlResults = await Promise.all(
+    (submissions ?? []).map((s) =>
+      supabase.storage
+        .from("itp-photos")
+        .createSignedUrl(s.photo_path, 3600)
+        .then(({ data }) => ({ id: s.id, url: data?.signedUrl })),
+    ),
+  );
+  for (const { id: submissionId, url } of signedUrlResults) {
+    if (url) photoUrls.set(submissionId, url);
   }
 
   return (

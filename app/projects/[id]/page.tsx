@@ -16,27 +16,25 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   const { id } = await params;
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const { data: profile } = user
-    ? await supabase.from("profiles").select("role").eq("id", user.id).single()
-    : { data: null };
-  const isCoordinator = profile?.role === "coordinator" || profile?.role === "admin";
-
-  const { data: project } = await supabase
-    .from("projects")
-    .select("id, name, company")
-    .eq("id", id)
-    .single();
+  const [
+    {
+      data: { user },
+    },
+    { data: project },
+  ] = await Promise.all([
+    supabase.auth.getUser(),
+    supabase.from("projects").select("id, name, company").eq("id", id).single(),
+  ]);
 
   if (!project) notFound();
 
-  const { data: items } = await supabase
-    .from("itp_items")
-    .select("*")
-    .eq("project_id", id)
-    .order("location_path");
+  const [{ data: profile }, { data: items }] = await Promise.all([
+    user
+      ? supabase.from("profiles").select("role").eq("id", user.id).single()
+      : Promise.resolve({ data: null }),
+    supabase.from("itp_items").select("*").eq("project_id", id).order("location_path"),
+  ]);
+  const isCoordinator = profile?.role === "coordinator" || profile?.role === "admin";
 
   const grouped = new Map<string, ItpItem[]>();
   for (const item of (items ?? []) as ItpItem[]) {

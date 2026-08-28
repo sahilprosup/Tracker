@@ -6,32 +6,33 @@ import { nowInMelbourne, melbourneDayBoundsUtc } from "@/lib/time";
 export default async function DashboardPage() {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const { data: profile } = user
-    ? await supabase.from("profiles").select("role").eq("id", user.id).single()
-    : { data: null };
-  const isCoordinator = profile?.role === "coordinator" || profile?.role === "admin";
-
-  const { data: projects } = await supabase
-    .from("projects")
-    .select("id, name, company, active")
-    .eq("active", true)
-    .order("name");
-
-  const { data: itemCounts } = await supabase
-    .from("itp_items")
-    .select("project_id, status");
-
   const { start: todayStart } = melbourneDayBoundsUtc(nowInMelbourne().date);
-  const { count: myTodayCount } = user
-    ? await supabase
-        .from("submissions")
-        .select("id", { count: "exact", head: true })
-        .eq("submitted_by", user.id)
-        .gte("submitted_at", todayStart)
-    : { count: null };
+
+  const [
+    {
+      data: { user },
+    },
+    { data: projects },
+    { data: itemCounts },
+  ] = await Promise.all([
+    supabase.auth.getUser(),
+    supabase.from("projects").select("id, name, company, active").eq("active", true).order("name"),
+    supabase.from("itp_items").select("project_id, status"),
+  ]);
+
+  const [{ data: profile }, { count: myTodayCount }] = await Promise.all([
+    user
+      ? supabase.from("profiles").select("role").eq("id", user.id).single()
+      : Promise.resolve({ data: null }),
+    user
+      ? supabase
+          .from("submissions")
+          .select("id", { count: "exact", head: true })
+          .eq("submitted_by", user.id)
+          .gte("submitted_at", todayStart)
+      : Promise.resolve({ count: null }),
+  ]);
+  const isCoordinator = profile?.role === "coordinator" || profile?.role === "admin";
 
   const countsByProject = new Map<string, { total: number; submitted: number; closed: number }>();
   for (const row of itemCounts ?? []) {

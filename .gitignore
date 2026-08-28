@@ -37,6 +37,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# scratch worktree checkouts created for isolated background agents
+/.claude/worktrees/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

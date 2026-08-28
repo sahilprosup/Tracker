@@ -87,7 +87,7 @@ export default async function ProjectPage({
 
   if (!project) notFound();
 
-  const [profile, { data: itemsData }] = await Promise.all([
+  const [profile, { data: itemsData }, { data: locationRows }] = await Promise.all([
     user ? getProfile(supabase, user) : Promise.resolve(null),
     supabase
       .from("itp_items")
@@ -103,20 +103,33 @@ export default async function ProjectPage({
       // that has an order, rather than being interleaved arbitrarily.
       .order("location_order", { ascending: true, nullsFirst: false })
       .order("location_path"),
+    // locations mirrors Visibuild's real tree (see migration 0008) so a zone
+    // with zero items today - e.g. Melton's "IPU Tower" - still shows up as
+    // a real, correctly-ordered button instead of silently disappearing
+    // because nothing has been assigned there yet.
+    supabase.from("locations").select("full_path, sort_order").eq("project_id", id),
   ]);
   const isCoordinator = profile?.role === "coordinator" || profile?.role === "admin";
   const all = (itemsData ?? []) as ItpItem[];
+  const locs = locationRows ?? [];
 
-  const root = commonPrefixSegments(all.map((i) => i.location_path).filter((p): p is string => !!p));
+  const root = commonPrefixSegments([
+    ...all.map((i) => i.location_path).filter((p): p is string => !!p),
+    ...locs.map((l) => l.full_path),
+  ]);
   const currentPath = decodePath(rawPath);
 
   const withRelSegs = all.map((item) => ({
     item,
     relSegs: item.location_path ? relativeSegments(item.location_path, root) : [],
   }));
+  const locsWithRelSegs = locs.map((loc) => ({ loc, relSegs: relativeSegments(loc.full_path, root) }));
   const currentKey = currentPath.join(" / ");
   const atNode = withRelSegs.filter((x) => x.relSegs.join(" / ") === currentKey);
   const below = withRelSegs.filter(
+    (x) => x.relSegs.length > currentPath.length && x.relSegs.slice(0, currentPath.length).join(" / ") === currentKey,
+  );
+  const locsBelow = locsWithRelSegs.filter(
     (x) => x.relSegs.length > currentPath.length && x.relSegs.slice(0, currentPath.length).join(" / ") === currentKey,
   );
 
@@ -189,8 +202,8 @@ export default async function ProjectPage({
         </p>
       )}
 
-      {below.length > 0 ? (
-        <ZoneButtons id={id} currentPath={currentPath} below={below} />
+      {below.length > 0 || locsBelow.length > 0 ? (
+        <ZoneButtons id={id} currentPath={currentPath} below={below} locsBelow={locsBelow} />
       ) : (
         <LeafView id={id} currentPath={currentPath} items={atNode.map((x) => x.item)} unitParam={rawUnit} isCoordinator={isCoordinator} />
       )}
@@ -204,10 +217,12 @@ function ZoneButtons({
   id,
   currentPath,
   below,
+  locsBelow,
 }: {
   id: string;
   currentPath: string[];
   below: { item: ItpItem; relSegs: string[] }[];
+  locsBelow: { loc: { full_path: string; sort_order: number }; relSegs: string[] }[];
 }) {
   const nextIndex = currentPath.length;
   const groups = new Map<string, { items: ItpItem[]; minOrder: number }>();
@@ -218,7 +233,30 @@ function ZoneButtons({
     g.minOrder = Math.min(g.minOrder, item.location_order ?? Infinity);
     groups.set(key, g);
   }
-  const sorted = [...groups.entries()].sort((a, b) => a[1].minOrder - b[1].minOrder);
+  // locations carries Visibuild's real per-parent sibling order (sort_order),
+  // which is a small, correctly-scoped number - unlike itp_items'
+  // location_order, which is a flat rank across every leaf in the whole
+  // project and isn't comparable to it. Where a real location row exists for
+  // this child, its sort_order wins; that also surfaces zero-item children
+  // (a group with no items at all yet) that wouldn't otherwise appear.
+  const realOrder = new Map<string, number>();
+  for (const { loc, relSegs } of locsBelow) {
+    if (relSegs.length === nextIndex + 1) {
+      const key = relSegs[nextIndex];
+      realOrder.set(key, loc.sort_order);
+      if (!groups.has(key)) groups.set(key, { items: [], minOrder: Infinity });
+    }
+  }
+  const sorted = [...groups.entries()].sort((a, b) => {
+    const [labelA] = a;
+    const [labelB] = b;
+    const orderA = realOrder.get(labelA);
+    const orderB = realOrder.get(labelB);
+    if (orderA !== undefined && orderB !== undefined) return orderA - orderB;
+    if (orderA !== undefined) return -1;
+    if (orderB !== undefined) return 1;
+    return a[1].minOrder - b[1].minOrder;
+  });
 
   return (
     <div className="m-pad grid grid-cols-1 gap-2.5 py-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -232,7 +270,7 @@ function ZoneButtons({
             {label}
           </span>
           <span className="m-eyebrow text-[var(--color-neutral-600)]">
-            {g.items.length} items · {closedCount(g.items)} closed
+            {g.items.length ? `${g.items.length} items · ${closedCount(g.items)} closed` : "No items loaded yet"}
           </span>
         </Link>
       ))}
@@ -253,7 +291,13 @@ function LeafView({
   unitParam: string | undefined;
   isCoordinator: boolean;
 }) {
-  if (items.length === 0) return null;
+  if (items.length === 0) {
+    return (
+      <p className="m-pad py-14 text-sm text-[var(--color-neutral-600)]">
+        No ITP items assigned to Proline here yet.
+      </p>
+    );
+  }
 
   const units = detectUniformUnits(items);
 
